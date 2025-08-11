@@ -39,6 +39,9 @@ while (true)
                     {
                         foreach (var dir in pathDirs)
                         {
+                            if (Directory.Exists(dir) == false)
+                                continue;
+                            
                             var files = Directory.EnumerateFiles(dir, ".exe", SearchOption.AllDirectories);
                             if (files.Contains(commandArgs))
                             {
