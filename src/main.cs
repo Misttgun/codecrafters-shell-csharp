@@ -8,6 +8,14 @@ var command = Console.ReadLine();
 
 while (true)
 {
+    var words = command?.Split(' ');
+    if (words != null && words.Length > 0)
+    {
+        string firstWord = words[0];
+        if (firstWord == "exit")
+            return 1;
+    }
+    
     Console.WriteLine($"{command}: command not found");
 
     Console.Write("$ ");
