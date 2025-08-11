@@ -1,3 +1,6 @@
+var path = Environment.GetEnvironmentVariable("PATH");
+var pathDirs = path?.Split(Path.PathSeparator);
+
 while (true)
 {
     Console.Write("$ ");
@@ -25,9 +28,32 @@ while (true)
             }
             case "type":
                 if (commandArgs is "echo" or "exit" or "type")
+                {
                     Console.WriteLine($"{commandArgs} is a shell builtin");
+                }
                 else
-                    Console.WriteLine($"{commandArgs}: not found");
+                {
+                    var found = false;
+                    var foundDir = string.Empty;
+                    if (pathDirs != null)
+                    {
+                        foreach (var dir in pathDirs)
+                        {
+                            var files = Directory.EnumerateFiles(dir, ".exe", SearchOption.AllDirectories);
+                            if (files.Contains(commandArgs))
+                            {
+                                found = true;
+                                foundDir = dir;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if(found)
+                        Console.WriteLine($"{commandArgs} is {foundDir}");
+                    else
+                        Console.WriteLine($"{commandArgs}: not found");
+                }
                 break;
             default:
                 Console.WriteLine($"{input}: command not found");
