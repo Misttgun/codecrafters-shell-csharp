@@ -1,5 +1,4 @@
-var path = Environment.GetEnvironmentVariable("PATH");
-var pathDirs = path?.Split(Path.PathSeparator);
+var builtinCommands = new HashSet<string>() { "exit", "echo", "type" };
 
 while (true)
 {
@@ -27,33 +26,32 @@ while (true)
                 break;
             }
             case "type":
-                if (commandArgs is "echo" or "exit" or "type")
+                if (builtinCommands.Contains(commandArgs))
                 {
                     Console.WriteLine($"{commandArgs} is a shell builtin");
                 }
                 else
                 {
+                    var path = Environment.GetEnvironmentVariable("PATH");
+                    var pathDirs = path?.Split(Path.PathSeparator);
+                    
                     var found = false;
-                    var foundDir = string.Empty;
+                    var fullPath = string.Empty;
+                    
                     if (pathDirs != null)
                     {
                         foreach (var dir in pathDirs)
                         {
-                            if (Directory.Exists(dir) == false)
+                            fullPath = Path.Join(dir, commandArgs);
+                            if (Directory.Exists(fullPath) == false)
                                 continue;
-                            
-                            var files = Directory.EnumerateFiles(dir, ".exe", SearchOption.AllDirectories);
-                            if (files.Contains(commandArgs))
-                            {
-                                found = true;
-                                foundDir = dir;
-                                break;
-                            }
+
+                            found = true;
                         }
                     }
                     
                     if(found)
-                        Console.WriteLine($"{commandArgs} is {foundDir}");
+                        Console.WriteLine($"{commandArgs} is {fullPath}");
                     else
                         Console.WriteLine($"{commandArgs}: not found");
                 }
