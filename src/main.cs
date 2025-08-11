@@ -27,7 +27,7 @@ while (true)
                 if (commandArgs is "echo" or "exit" or "type")
                     Console.WriteLine($"{commandArgs} is a shell builtin");
                 else
-                    Console.WriteLine($"{input}: command not found");
+                    Console.WriteLine($"{commandArgs}: not found");
                 break;
             default:
                 Console.WriteLine($"{input}: command not found");
