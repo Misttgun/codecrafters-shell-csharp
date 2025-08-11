@@ -24,7 +24,7 @@ while (true)
                 break;
             }
             case "type":
-                if (commandArgs is "echo" or "exit")
+                if (commandArgs is "echo" or "exit" or "type")
                     Console.WriteLine($"{commandArgs} is a shell builtin");
                 else
                     Console.WriteLine($"{input}: command not found");
