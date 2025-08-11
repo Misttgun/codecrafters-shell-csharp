@@ -1,39 +1,41 @@
-using System.Net;
-using System.Net.Sockets;
-
-Console.Write("$ ");
-
-// Wait for user input
-var command = Console.ReadLine();
-
 while (true)
 {
-    var words = command?.Split(' ');
-    if (words != null && words.Length > 0)
+    Console.Write("$ ");
+
+    // Wait for user input
+    var input = Console.ReadLine();
+    
+    if (input == null)
+        continue;
+    
+    var words = input.Split(' ');
+    if (words.Length > 0)
     {
-        var firstWord = words[0];
-        switch (firstWord)
+        var command = words[0];
+        var commandArgs = input[command.Length..].Trim();
+        
+        switch (command)
         {
             case "exit":
                 return 0;
             case "echo":
             {
-                for (int i = 1; i < words.Length; i++) 
-                    Console.Write(words[i] + (i == words.Length - 1 ? "" : " "));
-            
-                Console.WriteLine();
+                Console.WriteLine(commandArgs);
                 break;
             }
+            case "type":
+                if (commandArgs is "echo" or "exit")
+                    Console.WriteLine($"{commandArgs} is a shell builtin");
+                else
+                    Console.WriteLine($"{input}: command not found");
+                break;
             default:
-                Console.WriteLine($"{command}: command not found");
+                Console.WriteLine($"{input}: command not found");
                 break;
         }
     }
     else
     {
-        Console.WriteLine($"{command}: command not found");
+        Console.WriteLine($"{input}: command not found");
     }
-
-    Console.Write("$ ");
-    command = Console.ReadLine();
 }
