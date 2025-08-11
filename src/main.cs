@@ -13,7 +13,7 @@ while (true)
     {
         string firstWord = words[0];
         if (firstWord == "exit")
-            return 1;
+            return 0;
     }
     
     Console.WriteLine($"{command}: command not found");
