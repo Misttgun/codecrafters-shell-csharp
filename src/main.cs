@@ -45,7 +45,13 @@ while (true)
                 
                 break;
             case "cd":
-                if (Directory.Exists(commandArgs))
+                var home = Environment.GetEnvironmentVariable("HOME");
+                var fallbackHome = Directory.GetCurrentDirectory();
+                if (commandArgs == "~")
+                {
+                    Directory.SetCurrentDirectory(home ?? fallbackHome);
+                }
+                else if (Directory.Exists(commandArgs))
                 {
                     Directory.SetCurrentDirectory(commandArgs);
                 }
