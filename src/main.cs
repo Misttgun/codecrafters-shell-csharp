@@ -43,7 +43,7 @@ while (true)
                         foreach (var dir in pathDirs)
                         {
                             fullPath = Path.Join(dir, commandArgs);
-                            if (Directory.Exists(fullPath) == false)
+                            if (Path.Exists(fullPath) == false)
                                 continue;
 
                             Console.WriteLine(fullPath);
