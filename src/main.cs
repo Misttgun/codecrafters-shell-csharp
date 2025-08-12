@@ -42,14 +42,14 @@ while (true)
             default:
                 var foundExe = TryGetCommandDir(command, out var dir, out _);
 
-                var currentDirectory = Directory.GetCurrentDirectory();
+                //var currentDirectory = Directory.GetCurrentDirectory();
 
                 if (foundExe)
                 {
-                    Directory.SetCurrentDirectory(dir ?? string.Empty); // Dir can not be null here
+                    //Directory.SetCurrentDirectory(dir ?? string.Empty); // Dir can not be null here
                     var process = Process.Start(command, commandArgs);
                     process.WaitForExit();
-                    Directory.SetCurrentDirectory(currentDirectory);
+                    //Directory.SetCurrentDirectory(currentDirectory);
                 }
                 else
                 {
