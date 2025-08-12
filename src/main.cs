@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-var builtinCommands = new HashSet<string>() { "exit", "echo", "type" };
+var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd" };
 
 while (true)
 {
@@ -38,6 +38,9 @@ while (true)
                     Console.WriteLine(found ? $"{commandArgs} is {fullPath}" : $"{commandArgs}: not found");
                 }
 
+                break;
+            case "pwd":
+                Console.WriteLine(Directory.GetCurrentDirectory());
                 break;
             default:
                 var foundExe = TryGetCommandDir(command, out var dir, out _);
