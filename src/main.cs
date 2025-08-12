@@ -71,7 +71,9 @@ while (true)
                         if (File.Exists(fullPath) && HasExecutePermission(fullPath))
                         {
                             found1 = true;
-                            Process.Start(fullPath, commandArgs);
+                            var process = Process.Start(fullPath, commandArgs);
+                            process.WaitForExit();
+                            
                             break;
                         }
                     }
