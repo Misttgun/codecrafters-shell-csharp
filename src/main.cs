@@ -36,23 +36,22 @@ while (true)
                     var pathDirs = path?.Split(Path.PathSeparator);
                     
                     var found = false;
-                    var fullPath = string.Empty;
-                    
+
                     if (pathDirs != null)
                     {
                         foreach (var dir in pathDirs)
                         {
-                            fullPath = Path.Join(dir, commandArgs);
-                            if (File.Exists(fullPath) == false)
-                                continue;
-
-                            found = true;
+                            var fullPath = Path.Join(dir, commandArgs);
+                            if (File.Exists(fullPath) && HasExecutePermission(fullPath))
+                            {
+                                found = true;
+                                Console.WriteLine($"{commandArgs} is {fullPath}");
+                                break;
+                            }
                         }
                     }
                     
-                    if(found)
-                        Console.WriteLine($"{commandArgs} is {fullPath}");
-                    else
+                    if(found == false)
                         Console.WriteLine($"{commandArgs}: not found");
                 }
                 break;
@@ -65,4 +64,11 @@ while (true)
     {
         Console.WriteLine($"{input}: command not found");
     }
+}
+
+bool HasExecutePermission(string filePath)
+{
+    var fileInfo = new FileInfo(filePath);
+    var unixFileMode = fileInfo.UnixFileMode;
+    return (unixFileMode & UnixFileMode.UserExecute) != 0;
 }
