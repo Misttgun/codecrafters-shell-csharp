@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd" };
+var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd", "cd" };
 
 while (true)
 {
@@ -25,6 +25,7 @@ while (true)
             case "echo":
             {
                 Console.WriteLine(commandArgs);
+                
                 break;
             }
             case "type":
@@ -34,25 +35,33 @@ while (true)
                 }
                 else
                 {
-                    var found = TryGetCommandDir(commandArgs, out _, out var fullPath);
+                    var found = TryGetCommandDir(commandArgs, out var fullPath);
                     Console.WriteLine(found ? $"{commandArgs} is {fullPath}" : $"{commandArgs}: not found");
                 }
 
                 break;
             case "pwd":
                 Console.WriteLine(Directory.GetCurrentDirectory());
+                
+                break;
+            case "cd":
+                if (Directory.Exists(commandArgs))
+                {
+                    Directory.SetCurrentDirectory(commandArgs);
+                }
+                else
+                {
+                    Console.WriteLine($"cd: {commandArgs}: No such file or directory");
+                }
+
                 break;
             default:
-                var foundExe = TryGetCommandDir(command, out var dir, out _);
-
-                //var currentDirectory = Directory.GetCurrentDirectory();
+                var foundExe = TryGetCommandDir(command, out _);
 
                 if (foundExe)
                 {
-                    //Directory.SetCurrentDirectory(dir ?? string.Empty); // Dir can not be null here
                     var process = Process.Start(command, commandArgs);
                     process.WaitForExit();
-                    //Directory.SetCurrentDirectory(currentDirectory);
                 }
                 else
                 {
@@ -62,6 +71,7 @@ while (true)
                 break;
         }
     }
+
     else
     {
         Console.WriteLine($"{input}: command not found");
@@ -75,12 +85,11 @@ bool HasExecutePermission(string filePath)
     return (unixFileMode & UnixFileMode.UserExecute) != 0;
 }
 
-bool TryGetCommandDir(string command, out string? dir, out string? fullPath)
+bool TryGetCommandDir(string command, out string? fullPath)
 {
     var path = Environment.GetEnvironmentVariable("PATH");
     var pathDirectories = path?.Split(Path.PathSeparator);
 
-    dir = null;
     fullPath = null;
 
     if (pathDirectories == null)
@@ -92,7 +101,6 @@ bool TryGetCommandDir(string command, out string? dir, out string? fullPath)
         if (File.Exists(fullPath) == false || HasExecutePermission(fullPath) == false)
             continue;
 
-        dir = directory;
         return true;
     }
 
