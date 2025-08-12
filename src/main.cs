@@ -35,21 +35,18 @@ while (true)
                     var path = Environment.GetEnvironmentVariable("PATH");
                     var pathDirs = path?.Split(Path.PathSeparator);
                     
-                    Console.WriteLine(path);
-                    
                     var found = false;
                     var fullPath = string.Empty;
                     
                     if (pathDirs != null)
                     {
-                        Console.WriteLine("PathDirs not null");
                         foreach (var dir in pathDirs)
                         {
                             fullPath = Path.Join(dir, commandArgs);
-                            Console.WriteLine(fullPath);
                             if (Directory.Exists(fullPath) == false)
                                 continue;
 
+                            Console.WriteLine(fullPath);
                             found = true;
                         }
                     }
