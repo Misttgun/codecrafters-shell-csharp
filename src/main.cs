@@ -62,6 +62,7 @@ while (true)
                 var pathDirs1 = path1?.Split(Path.PathSeparator);
 
                 var found1 = false;
+                var currentDirectory = Directory.GetCurrentDirectory();
 
                 if (pathDirs1 != null)
                 {
@@ -71,12 +72,17 @@ while (true)
                         if (File.Exists(fullPath) && HasExecutePermission(fullPath))
                         {
                             found1 = true;
-                            var process = Process.Start(fullPath, commandArgs);
+                            //Console.WriteLine(fullPath);
+                            //Console.WriteLine(commandArgs);
+                            Directory.SetCurrentDirectory(dir);
+                            var process = Process.Start(command, commandArgs);
                             process.WaitForExit();
                             
                             break;
                         }
                     }
+
+                    Directory.SetCurrentDirectory(currentDirectory);
                 }
 
                 if (found1 == false)
