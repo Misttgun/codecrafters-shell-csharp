@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 var builtinCommands = new HashSet<string>() { "exit", "echo", "type" };
 
 while (true)
@@ -56,7 +58,27 @@ while (true)
                 }
                 break;
             default:
-                Console.WriteLine($"{input}: command not found");
+                var path1 = Environment.GetEnvironmentVariable("PATH");
+                var pathDirs1 = path1?.Split(Path.PathSeparator);
+
+                var found1 = false;
+
+                if (pathDirs1 != null)
+                {
+                    foreach (var dir in pathDirs1)
+                    {
+                        var fullPath = Path.Join(dir, command);
+                        if (File.Exists(fullPath) && HasExecutePermission(fullPath))
+                        {
+                            found1 = true;
+                            Process.Start(fullPath, commandArgs);
+                            break;
+                        }
+                    }
+                }
+
+                if (found1 == false)
+                    Console.WriteLine($"{commandArgs}: not found");
                 break;
         }
     }
