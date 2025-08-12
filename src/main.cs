@@ -46,7 +46,6 @@ while (true)
                             if (Path.Exists(fullPath) == false)
                                 continue;
 
-                            Console.WriteLine(fullPath);
                             found = true;
                         }
                     }
