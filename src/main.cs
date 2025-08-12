@@ -40,7 +40,7 @@ while (true)
 
                 break;
             default:
-                var foundExe = TryGetCommandDir(commandArgs, out var dir, out _);
+                var foundExe = TryGetCommandDir(command, out var dir, out _);
 
                 var currentDirectory = Directory.GetCurrentDirectory();
 
