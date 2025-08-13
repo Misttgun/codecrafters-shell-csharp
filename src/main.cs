@@ -145,13 +145,13 @@ List<string> ProcessArguments(string arguments)
     
     foreach (var c in arguments)
     {
-        if (c == '"' && inSingleQuote == false)
+        if (c == '"' && inSingleQuote == false && shouldEscape == false)
         {
             inDoubleQuote = !inDoubleQuote;
             continue;
         }
 
-        if (c == '\'' && inDoubleQuote == false)
+        if (c == '\'' && inDoubleQuote == false && shouldEscape == false)
         {
             inSingleQuote = !inSingleQuote;
             continue;
