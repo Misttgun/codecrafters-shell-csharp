@@ -68,11 +68,28 @@ while (true)
 
                 if (foundExe)
                 {
-                    if (command == "cat")
-                        commandArgs = string.Join(" ", argList[..].Select(arg => $"\"{arg}\""));
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = command,
+                        UseShellExecute = false,
+                        RedirectStandardError = true,
+                        RedirectStandardOutput = true
+                    };
+                    
+                    foreach (var arg in argList)
+                        startInfo.ArgumentList.Add(arg);
+                    
                     
                     var process = Process.Start(command, commandArgs);
+                    var output = process.StandardOutput.ReadToEnd();
+                    var error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
+
+                    if (string.IsNullOrEmpty(output) == false)
+                        Console.WriteLine(output);
+                    
+                    if (string.IsNullOrEmpty(error) == false)
+                        Console.WriteLine(error);
                 }
                 else
                 {
@@ -141,7 +158,10 @@ List<string> ProcessArguments(string arguments)
 
         if (char.IsWhiteSpace(c) == false || inDoubleQuote || inSingleQuote)
         {
-            resultBuilder.Append(c);
+            if (c == '\\')
+                resultBuilder.Append(' ');
+            else
+                resultBuilder.Append(c);
             continue;
         }
 
