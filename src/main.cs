@@ -122,17 +122,24 @@ string ProcessArguments(string arguments)
 {
     var resultBuilder = new StringBuilder();
     var inSingleQuote = false;
+    var inDoubleQuote = false;
     var argList = new List<string>();
     
     foreach (var c in arguments)
     {
-        if (c == '\'')
+        if (c == '"')
+        {
+            inDoubleQuote = !inDoubleQuote;
+            continue;
+        }
+
+        if (c == '\'' && inDoubleQuote == false)
         {
             inSingleQuote = !inSingleQuote;
             continue;
         }
 
-        if (char.IsWhiteSpace(c) == false || inSingleQuote)
+        if (char.IsWhiteSpace(c) == false || inDoubleQuote || inSingleQuote)
         {
             resultBuilder.Append(c);
             continue;
