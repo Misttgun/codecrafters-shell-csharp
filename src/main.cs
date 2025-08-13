@@ -27,6 +27,7 @@ while (true)
             {
                 var echoResult = new StringBuilder();
                 var foundQuote = false;
+                var spaceCount = 0;
                 foreach (var character in commandArgs)
                 {
                     if (character == '\'')
@@ -37,12 +38,16 @@ while (true)
 
                     if (character == ' ')
                     {
-                        if (foundQuote)
+                        ++spaceCount;
+                        if (foundQuote || spaceCount == 1)
+                        {
                             echoResult.Append(character);
+                        }
                     }
                     else
                     {
                         echoResult.Append(character);
+                        spaceCount = 0;
                     }
                 }
 
