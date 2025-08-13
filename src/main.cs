@@ -17,7 +17,36 @@ while (true)
     if (words.Length > 0)
     {
         var command = words[0];
-        var commandArgs = input[command.Length..].Trim();
+        var cArgs = input[command.Length..].Trim();
+
+        // Support for single quotes
+        var cArgsBuilder = new StringBuilder();
+        var foundQuote = false;
+        var spaceCount = 0;
+        foreach (var character in cArgs)
+        {
+            if (character == '\'')
+            {
+                foundQuote = !foundQuote;
+                continue;
+            }
+
+            if (character == ' ')
+            {
+                ++spaceCount;
+                if (foundQuote || spaceCount == 1)
+                {
+                    cArgsBuilder.Append(character);
+                }
+            }
+            else
+            {
+                cArgsBuilder.Append(character);
+                spaceCount = 0;
+            }
+        }
+
+        var commandArgs = cArgsBuilder.ToString();
 
         switch (command)
         {
@@ -25,33 +54,7 @@ while (true)
                 return 0;
             case "echo":
             {
-                var echoResult = new StringBuilder();
-                var foundQuote = false;
-                var spaceCount = 0;
-                foreach (var character in commandArgs)
-                {
-                    if (character == '\'')
-                    {
-                        foundQuote = !foundQuote;
-                        continue;
-                    }
-
-                    if (character == ' ')
-                    {
-                        ++spaceCount;
-                        if (foundQuote || spaceCount == 1)
-                        {
-                            echoResult.Append(character);
-                        }
-                    }
-                    else
-                    {
-                        echoResult.Append(character);
-                        spaceCount = 0;
-                    }
-                }
-
-                Console.WriteLine(echoResult);
+                Console.WriteLine(commandArgs);
 
                 break;
             }
