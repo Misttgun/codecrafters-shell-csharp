@@ -68,7 +68,8 @@ while (true)
 
                 if (foundExe)
                 {
-                    Console.WriteLine($"Found {command}");
+                    if (command == "cat")
+                        commandArgs = cArgs;
                     var process = Process.Start(command, commandArgs);
                     process.WaitForExit();
                 }
