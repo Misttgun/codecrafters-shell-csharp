@@ -39,11 +39,11 @@ while (true)
                     {
                         if (foundQuote)
                             echoResult.Append(character);
-                        else
-                            continue;
                     }
-
-                    echoResult.Append(character);
+                    else
+                    {
+                        echoResult.Append(character);
+                    }
                 }
 
                 Console.WriteLine(echoResult);
