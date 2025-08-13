@@ -93,7 +93,7 @@ while (true)
                 break;
             default:
                 if (command == "cat")
-                    Console.WriteLine("We have a cat");
+                    Console.WriteLine(commandArgs);
                 var foundExe = TryGetCommandDir(command, out _);
 
                 if (foundExe)
