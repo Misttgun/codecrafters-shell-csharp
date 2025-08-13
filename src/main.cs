@@ -156,12 +156,11 @@ List<string> ProcessArguments(string arguments)
             continue;
         }
 
-        if (char.IsWhiteSpace(c) == false || inDoubleQuote || inSingleQuote)
+        var shouldEscape = inDoubleQuote == false && inSingleQuote == false && c == '\\';
+        
+        if (shouldEscape && char.IsWhiteSpace(c) || char.IsWhiteSpace(c) == false || inDoubleQuote || inSingleQuote)
         {
-            if (c == '\\')
-                resultBuilder.Append(' ');
-            else
-                resultBuilder.Append(c);
+            resultBuilder.Append(c);
             continue;
         }
 
