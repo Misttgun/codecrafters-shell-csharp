@@ -24,7 +24,14 @@ while (true)
                 return 0;
             case "echo":
             {
-                Console.WriteLine(commandArgs);
+                if (commandArgs.StartsWith('\''))
+                {
+                    
+                }
+                else
+                {
+                    Console.WriteLine(commandArgs);
+                }
                 
                 break;
             }
