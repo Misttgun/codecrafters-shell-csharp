@@ -69,7 +69,8 @@ while (true)
                 if (foundExe)
                 {
                     if (command == "cat")
-                        commandArgs = cArgs;
+                        commandArgs = cArgs.Replace("\'", "\"");
+                    
                     var process = Process.Start(command, commandArgs);
                     process.WaitForExit();
                 }
