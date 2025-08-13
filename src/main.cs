@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 
 var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd", "cd" };
 
@@ -24,15 +25,27 @@ while (true)
                 return 0;
             case "echo":
             {
-                if (commandArgs.StartsWith('\''))
+                var echoResult = new StringBuilder();
+                var foundQuote = false;
+                foreach (var character in commandArgs)
                 {
-                    
+                    if (character == '\'')
+                    {
+                        foundQuote = !foundQuote;
+                        continue;
+                    }
+
+                    if (foundQuote)
+                    {
+                        if (character == ' ')
+                            continue;
+                    }
+
+                    echoResult.Append(character);
                 }
-                else
-                {
-                    Console.WriteLine(commandArgs);
-                }
-                
+
+                Console.WriteLine(echoResult);
+
                 break;
             }
             case "type":
@@ -49,7 +62,7 @@ while (true)
                 break;
             case "pwd":
                 Console.WriteLine(Directory.GetCurrentDirectory());
-                
+
                 break;
             case "cd":
                 var home = Environment.GetEnvironmentVariable("HOME");
