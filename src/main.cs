@@ -18,8 +18,8 @@ while (true)
     {
         var command = words[0];
         var cArgs = input[command.Length..].Trim();
-        var commandArgs = ProcessArguments(cArgs).ToString();
-
+        var argList = ProcessArguments(cArgs);
+        var commandArgs = string.Join(' ', argList);
         switch (command)
         {
             case "exit":
@@ -69,7 +69,7 @@ while (true)
                 if (foundExe)
                 {
                     if (command == "cat")
-                        commandArgs = cArgs.Replace("\'", "\"");
+                        commandArgs = string.Join(" ", argList[..].Select(arg => $"\"{arg}\""));
                     
                     var process = Process.Start(command, commandArgs);
                     process.WaitForExit();
@@ -118,7 +118,7 @@ bool TryGetCommandDir(string command, out string? fullPath)
     return false;
 }
 
-string ProcessArguments(string arguments)
+List<string> ProcessArguments(string arguments)
 {
     var resultBuilder = new StringBuilder();
     var inSingleQuote = false;
@@ -127,7 +127,7 @@ string ProcessArguments(string arguments)
     
     foreach (var c in arguments)
     {
-        if (c == '"')
+        if (c == '"' && inSingleQuote == false)
         {
             inDoubleQuote = !inDoubleQuote;
             continue;
@@ -155,5 +155,5 @@ string ProcessArguments(string arguments)
     if (resultBuilder.Length > 0)
         argList.Add(resultBuilder.ToString());
 
-    return string.Join(' ', argList);
+    return argList;
 }
