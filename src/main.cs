@@ -140,6 +140,7 @@ List<string> ProcessArguments(string arguments)
     var resultBuilder = new StringBuilder();
     var inSingleQuote = false;
     var inDoubleQuote = false;
+    var shouldEscape = false;
     var argList = new List<string>();
     
     foreach (var c in arguments)
@@ -156,11 +157,16 @@ List<string> ProcessArguments(string arguments)
             continue;
         }
 
-        var shouldEscape = inDoubleQuote == false && inSingleQuote == false && c == '\\';
+        if (inDoubleQuote == false && inSingleQuote == false && c == '\\' && shouldEscape == false)
+        {
+            shouldEscape = true;
+            continue;
+        }
         
-        if (shouldEscape && char.IsWhiteSpace(c) || char.IsWhiteSpace(c) == false || inDoubleQuote || inSingleQuote)
+        if (inDoubleQuote || inSingleQuote || shouldEscape || char.IsWhiteSpace(c) == false)
         {
             resultBuilder.Append(c);
+            shouldEscape = false;
             continue;
         }
 
