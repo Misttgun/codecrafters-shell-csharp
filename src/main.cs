@@ -80,10 +80,10 @@ while (true)
                         startInfo.ArgumentList.Add(arg);
                     
                     
-                    var process = Process.Start(command, commandArgs);
-                    var output = process.StandardOutput.ReadToEnd();
-                    var error = process.StandardError.ReadToEnd();
-                    process.WaitForExit();
+                    var process = Process.Start(startInfo);
+                    var output = process?.StandardOutput.ReadToEnd();
+                    var error = process?.StandardError.ReadToEnd();
+                    process?.WaitForExit();
 
                     if (string.IsNullOrEmpty(output) == false)
                         Console.WriteLine(output);
