@@ -35,9 +35,11 @@ while (true)
                         continue;
                     }
 
-                    if (foundQuote)
+                    if (character == ' ')
                     {
-                        if (character == ' ')
+                        if (foundQuote)
+                            echoResult.Append(character);
+                        else
                             continue;
                     }
 
