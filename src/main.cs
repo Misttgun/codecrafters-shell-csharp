@@ -18,35 +18,7 @@ while (true)
     {
         var command = words[0];
         var cArgs = input[command.Length..].Trim();
-
-        // Support for single quotes
-        var cArgsBuilder = new StringBuilder();
-        var foundQuote = false;
-        var spaceCount = 0;
-        foreach (var character in cArgs)
-        {
-            if (character == '\'')
-            {
-                foundQuote = !foundQuote;
-                continue;
-            }
-
-            if (character == ' ')
-            {
-                ++spaceCount;
-                if (foundQuote || spaceCount == 1)
-                {
-                    cArgsBuilder.Append(character);
-                }
-            }
-            else
-            {
-                cArgsBuilder.Append(character);
-                spaceCount = 0;
-            }
-        }
-
-        var commandArgs = cArgsBuilder.ToString();
+        var commandArgs = ProcessArguments(cArgs).ToString();
 
         switch (command)
         {
@@ -143,4 +115,37 @@ bool TryGetCommandDir(string command, out string? fullPath)
     }
 
     return false;
+}
+
+string ProcessArguments(string arguments)
+{
+    var resultBuilder = new StringBuilder();
+    var inSingleQuote = false;
+    var argList = new List<string>();
+    
+    foreach (var c in arguments)
+    {
+        if (c == '\'')
+        {
+            inSingleQuote = !inSingleQuote;
+            continue;
+        }
+
+        if (char.IsWhiteSpace(c) || inSingleQuote)
+        {
+            resultBuilder.Append(c);
+            continue;
+        }
+
+        if (resultBuilder.Length > 0)
+        {
+            argList.Add(resultBuilder.ToString());
+            resultBuilder.Clear();
+        }
+    }
+
+    if (resultBuilder.Length > 0)
+        argList.Add(resultBuilder.ToString());
+
+    return string.Join(' ', argList);
 }
