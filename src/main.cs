@@ -131,7 +131,7 @@ string ProcessArguments(string arguments)
             continue;
         }
 
-        if (char.IsWhiteSpace(c) || inSingleQuote)
+        if (char.IsWhiteSpace(c) == false || inSingleQuote)
         {
             resultBuilder.Append(c);
             continue;
