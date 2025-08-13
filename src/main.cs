@@ -86,10 +86,10 @@ while (true)
                     process?.WaitForExit();
 
                     if (string.IsNullOrEmpty(output) == false)
-                        Console.WriteLine(output);
+                        Console.Write(output);
                     
                     if (string.IsNullOrEmpty(error) == false)
-                        Console.WriteLine(error);
+                        Console.Write(error);
                 }
                 else
                 {
