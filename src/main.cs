@@ -68,6 +68,7 @@ while (true)
 
                 if (foundExe)
                 {
+                    Console.WriteLine($"Found {command}");
                     var process = Process.Start(command, commandArgs);
                     process.WaitForExit();
                 }
