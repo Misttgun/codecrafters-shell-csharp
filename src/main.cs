@@ -157,7 +157,7 @@ List<string> ProcessArguments(string arguments)
             continue;
         }
 
-        if (inDoubleQuote == false && inSingleQuote == false && c == '\\' && shouldEscape == false)
+        if (inSingleQuote == false && c == '\\' && shouldEscape == false)
         {
             shouldEscape = true;
             continue;
