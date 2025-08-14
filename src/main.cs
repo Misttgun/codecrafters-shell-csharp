@@ -138,35 +138,37 @@ bool TryGetCommandDir(string command, out string? fullPath)
 List<string> ProcessArguments(string arguments)
 {
     var resultBuilder = new StringBuilder();
-    var inSingleQuote = false;
-    var inDoubleQuote = false;
-    var shouldEscape = false;
+    var openSingleQuote = false;
+    var openDoubleQuote = false;
+    var backSlash = false;
     var argList = new List<string>();
     
     foreach (var c in arguments)
     {
-        if (c == '"' && inSingleQuote == false && shouldEscape == false)
+        if (c == '\\' && openSingleQuote == false && backSlash == false)
         {
-            inDoubleQuote = !inDoubleQuote;
-            continue;
-        }
-
-        if (c == '\'' && inDoubleQuote == false && shouldEscape == false)
-        {
-            inSingleQuote = !inSingleQuote;
-            continue;
-        }
-
-        if (inSingleQuote == false && c == '\\' && shouldEscape == false)
-        {
-            shouldEscape = true;
+            backSlash = true;
             continue;
         }
         
-        if (inDoubleQuote || inSingleQuote || shouldEscape || char.IsWhiteSpace(c) == false)
+        if (c == '"' && openSingleQuote == false && backSlash == false)
         {
+            openDoubleQuote = !openDoubleQuote;
+            continue;
+        }
+
+        if (c == '\'' && openDoubleQuote == false && backSlash == false)
+        {
+            openSingleQuote = !openSingleQuote;
+            continue;
+        }
+        
+        if (openDoubleQuote || openSingleQuote || backSlash || char.IsWhiteSpace(c) == false)
+        {
+            HandleBackslashInDoubleQuote(openDoubleQuote, backSlash, c, resultBuilder);
+                
             resultBuilder.Append(c);
-            shouldEscape = false;
+            backSlash = false;
             continue;
         }
 
@@ -181,4 +183,10 @@ List<string> ProcessArguments(string arguments)
         argList.Add(resultBuilder.ToString());
 
     return argList;
+}
+
+void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, char c, StringBuilder stringBuilder)
+{
+    if(openDoubleQuote && backSlash && c != '\\' && c != '"')
+        stringBuilder.Append('\\');
 }
