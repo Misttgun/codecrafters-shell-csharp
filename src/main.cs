@@ -13,96 +13,95 @@ while (true)
     if (input == null)
         continue;
 
-    var words = input.Split(' ');
-    if (words.Length > 0)
+    var processedInput = ProcessConsoleText(input.Trim());
+
+    //var words = input.Split(' ');
+    var command = processedInput[0];
+    var argList = new List<string>();
+    var commandArgs = string.Empty;
+    if (processedInput.Count > 1)
     {
-        var command = words[0];
-        var cArgs = input[command.Length..].Trim();
-        var argList = ProcessArguments(cArgs);
-        var commandArgs = string.Join(' ', argList);
-        switch (command)
-        {
-            case "exit":
-                return 0;
-            case "echo":
-            {
-                Console.WriteLine(commandArgs);
-
-                break;
-            }
-            case "type":
-                if (builtinCommands.Contains(commandArgs))
-                {
-                    Console.WriteLine($"{commandArgs} is a shell builtin");
-                }
-                else
-                {
-                    var found = TryGetCommandDir(commandArgs, out var fullPath);
-                    Console.WriteLine(found ? $"{commandArgs} is {fullPath}" : $"{commandArgs}: not found");
-                }
-
-                break;
-            case "pwd":
-                Console.WriteLine(Directory.GetCurrentDirectory());
-
-                break;
-            case "cd":
-                var home = Environment.GetEnvironmentVariable("HOME");
-                var fallbackHome = Directory.GetCurrentDirectory();
-                if (commandArgs == "~")
-                {
-                    Directory.SetCurrentDirectory(home ?? fallbackHome);
-                }
-                else if (Directory.Exists(commandArgs))
-                {
-                    Directory.SetCurrentDirectory(commandArgs);
-                }
-                else
-                {
-                    Console.WriteLine($"cd: {commandArgs}: No such file or directory");
-                }
-
-                break;
-            default:
-                var foundExe = TryGetCommandDir(command, out _);
-
-                if (foundExe)
-                {
-                    var startInfo = new ProcessStartInfo
-                    {
-                        FileName = command,
-                        UseShellExecute = false,
-                        RedirectStandardError = true,
-                        RedirectStandardOutput = true
-                    };
-                    
-                    foreach (var arg in argList)
-                        startInfo.ArgumentList.Add(arg);
-                    
-                    
-                    var process = Process.Start(startInfo);
-                    var output = process?.StandardOutput.ReadToEnd();
-                    var error = process?.StandardError.ReadToEnd();
-                    process?.WaitForExit();
-
-                    if (string.IsNullOrEmpty(output) == false)
-                        Console.Write(output);
-                    
-                    if (string.IsNullOrEmpty(error) == false)
-                        Console.Write(error);
-                }
-                else
-                {
-                    Console.WriteLine($"{input}: command not found");
-                }
-
-                break;
-        }
+        argList = processedInput[1..];
+        commandArgs = string.Join(' ', argList);
     }
 
-    else
+    switch (command)
     {
-        Console.WriteLine($"{input}: command not found");
+        case "exit":
+            return 0;
+        case "echo":
+        {
+            Console.WriteLine(commandArgs);
+
+            break;
+        }
+        case "type":
+            if (builtinCommands.Contains(commandArgs))
+            {
+                Console.WriteLine($"{commandArgs} is a shell builtin");
+            }
+            else
+            {
+                var found = TryGetCommandDir(commandArgs, out var fullPath);
+                Console.WriteLine(found ? $"{commandArgs} is {fullPath}" : $"{commandArgs}: not found");
+            }
+
+            break;
+        case "pwd":
+            Console.WriteLine(Directory.GetCurrentDirectory());
+
+            break;
+        case "cd":
+            var home = Environment.GetEnvironmentVariable("HOME");
+            var fallbackHome = Directory.GetCurrentDirectory();
+            if (commandArgs == "~")
+            {
+                Directory.SetCurrentDirectory(home ?? fallbackHome);
+            }
+            else if (Directory.Exists(commandArgs))
+            {
+                Directory.SetCurrentDirectory(commandArgs);
+            }
+            else
+            {
+                Console.WriteLine($"cd: {commandArgs}: No such file or directory");
+            }
+
+            break;
+        default:
+            var foundExe = TryGetCommandDir(command, out _);
+
+            if (foundExe)
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = command,
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                };
+
+                foreach (var arg in argList)
+                    startInfo.ArgumentList.Add(arg);
+
+
+                var process = Process.Start(startInfo);
+                var output = process?.StandardOutput.ReadToEnd();
+                var error = process?.StandardError.ReadToEnd();
+                process?.WaitForExit();
+
+                if (string.IsNullOrEmpty(output) == false)
+                    Console.Write(output);
+
+                if (string.IsNullOrEmpty(error) == false)
+                    Console.Write(error);
+            }
+            else
+            {
+                Console.WriteLine($"{input}: command not found");
+            }
+
+            break;
     }
 }
 
@@ -135,22 +134,22 @@ bool TryGetCommandDir(string command, out string? fullPath)
     return false;
 }
 
-List<string> ProcessArguments(string arguments)
+List<string> ProcessConsoleText(string text)
 {
     var resultBuilder = new StringBuilder();
     var openSingleQuote = false;
     var openDoubleQuote = false;
     var backSlash = false;
     var argList = new List<string>();
-    
-    foreach (var c in arguments)
+
+    foreach (var c in text)
     {
         if (c == '\\' && openSingleQuote == false && backSlash == false)
         {
             backSlash = true;
             continue;
         }
-        
+
         if (c == '"' && openSingleQuote == false && backSlash == false)
         {
             openDoubleQuote = !openDoubleQuote;
@@ -162,11 +161,11 @@ List<string> ProcessArguments(string arguments)
             openSingleQuote = !openSingleQuote;
             continue;
         }
-        
+
         if (openDoubleQuote || openSingleQuote || backSlash || char.IsWhiteSpace(c) == false)
         {
             HandleBackslashInDoubleQuote(openDoubleQuote, backSlash, c, resultBuilder);
-                
+
             resultBuilder.Append(c);
             backSlash = false;
             continue;
@@ -187,6 +186,6 @@ List<string> ProcessArguments(string arguments)
 
 void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, char c, StringBuilder stringBuilder)
 {
-    if(openDoubleQuote && backSlash && c != '\\' && c != '"')
+    if (openDoubleQuote && backSlash && c != '\\' && c != '"')
         stringBuilder.Append('\\');
 }
