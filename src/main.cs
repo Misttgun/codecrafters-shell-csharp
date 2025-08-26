@@ -3,7 +3,6 @@ using System.Text;
 
 var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd", "cd" };
 
-List<string> redirectArgs = new List<string>();
 List<string> argsList = new List<string>();
 
 while (true)
@@ -16,33 +15,51 @@ while (true)
     if (input == null)
         continue;
 
-    redirectArgs.Clear();
+    string? outputFile = null;
+    string? errorFile = null;
     argsList.Clear();
-    
+
     var processedInput = ProcessConsoleText(input.Trim());
     var command = processedInput[0];
     var commandArgs = string.Empty;
-    
+
     if (processedInput.Count > 1)
     {
-        var beforeRedirect = true;
+        var redirect = false;
+        var errorRedirect = false;
         for (var i = 1; i < processedInput.Count; i++)
         {
-            if (processedInput[i] == ">" || processedInput[i] == "1>")
+            switch (processedInput[i])
             {
-                beforeRedirect = false;
-                continue;
+                case ">":
+                case "1>":
+                    redirect = true;
+                    continue;
+                case "2>":
+                    errorRedirect = true;
+                    continue;
             }
-            
-            if (beforeRedirect)
-                argsList.Add(processedInput[i]);
-            else
-                redirectArgs.Add(processedInput[i]);
+
+            if (redirect)
+            {
+                outputFile = processedInput[i];
+                break;
+            }
+
+            if (errorRedirect)
+            {
+                errorFile = processedInput[i];
+                break;
+            }
+
+            argsList.Add(processedInput[i]);
         }
-        
-        //argsList = processedInput[1..];
+
         commandArgs = string.Join(' ', argsList);
     }
+
+    string? output = null;
+    string? error = null;
 
     switch (command)
     {
@@ -50,36 +67,53 @@ while (true)
             return 0;
         case "echo":
         {
-            if (redirectArgs.Count > 0)
-            {
-                File.WriteAllText(redirectArgs[0], commandArgs + Environment.NewLine);
-            }
-            else
-            {
-                Console.WriteLine(commandArgs);
-            }
+            //if (string.IsNullOrEmpty(outputFile) == false)
+            //{
+            //    File.WriteAllText(outputFile, commandArgs + Environment.NewLine);
+            //}
+            //else if (string.IsNullOrEmpty(errorFile) == false)
+            //{
+            //    Console.WriteLine(commandArgs);
+            //    if (File.Exists(errorFile) == false)
+            //    {
+            //        using (File.Create(errorFile)) ;
+            //    }
+            //}
+            //else
+            //{
+            //    Console.WriteLine(commandArgs);
+            //}
+
+            output = $"{commandArgs}\n";
 
             break;
         }
         case "type":
             if (builtinCommands.Contains(commandArgs))
             {
-                Console.WriteLine($"{commandArgs} is a shell builtin");
+                output = $"{commandArgs} is a shell builtin\n";
+                //Console.WriteLine($"{commandArgs} is a shell builtin");
             }
             else
             {
                 var found = TryGetCommandDir(commandArgs, out var fullPath);
-                Console.WriteLine(found ? $"{commandArgs} is {fullPath}" : $"{commandArgs}: not found");
+                if (found)
+                    output = $"{commandArgs} is {fullPath}\n";
+                else
+                    error = $"{commandArgs}: not found\n";
+                //Console.WriteLine(found ? $"{commandArgs} is {fullPath}" : $"{commandArgs}: not found");
             }
 
             break;
         case "pwd":
-            Console.WriteLine(Directory.GetCurrentDirectory());
+            output = $"{Directory.GetCurrentDirectory()}\n";
+            //Console.WriteLine(Directory.GetCurrentDirectory());
 
             break;
         case "cd":
             var home = Environment.GetEnvironmentVariable("HOME");
             var fallbackHome = Directory.GetCurrentDirectory();
+
             if (commandArgs == "~")
             {
                 Directory.SetCurrentDirectory(home ?? fallbackHome);
@@ -90,7 +124,8 @@ while (true)
             }
             else
             {
-                Console.WriteLine($"cd: {commandArgs}: No such file or directory");
+                error = $"cd: {commandArgs}: No such file or directory\n";
+                //Console.WriteLine($"cd: {commandArgs}: No such file or directory");
             }
 
             break;
@@ -112,31 +147,27 @@ while (true)
 
 
                 var process = Process.Start(startInfo);
-                var output = process?.StandardOutput.ReadToEnd();
-                var error = process?.StandardError.ReadToEnd();
+                output = process?.StandardOutput.ReadToEnd();
+                error = process?.StandardError.ReadToEnd();
                 process?.WaitForExit();
-
-                if (redirectArgs.Count > 0)
-                {
-                    //Console.WriteLine($"Redirect args {redirectArgs[0]}");
-                    File.WriteAllText(redirectArgs[0], output);
-                }
-                else
-                {
-                    Console.Write(output);
-                }
-
-
-                if (string.IsNullOrEmpty(error) == false)
-                    Console.Write(error);
             }
             else
             {
-                Console.WriteLine($"{input}: command not found");
+                error = $"{input}: command not found\n";
             }
 
             break;
     }
+
+    if (outputFile != null)
+        File.WriteAllText(outputFile, output);
+    else
+        Console.Write(output);
+
+    if (errorFile != null)
+        File.WriteAllText(errorFile, error);
+    else
+        Console.Write(error);
 }
 
 bool HasExecutePermission(string filePath)
