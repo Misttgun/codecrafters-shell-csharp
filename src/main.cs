@@ -160,7 +160,10 @@ while (true)
 
     if (errorFile != null)
     {
-        File.WriteAllText(errorFile, error);
+        if (redirState == RedirState.RedirectError)
+            File.WriteAllText(errorFile, error);
+        else if (redirState == RedirState.AppendError) 
+            File.AppendAllText(errorFile, error);
     }
     else
     {
