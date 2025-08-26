@@ -23,30 +23,38 @@ while (true)
     var command = processedInput[0];
     var commandArgs = string.Empty;
 
+    var redirState = RedirState.None;
+
     if (processedInput.Count > 1)
     {
-        var redirect = false;
-        var errorRedirect = false;
+        
         for (var i = 1; i < processedInput.Count; i++)
         {
             switch (processedInput[i])
             {
                 case ">":
                 case "1>":
-                    redirect = true;
+                    redirState = RedirState.RedirectOutput;
                     continue;
                 case "2>":
-                    errorRedirect = true;
+                    redirState = RedirState.RedirectError;
+                    continue;
+                case ">>":
+                case "1>>":
+                    redirState = RedirState.AppendOutput;
+                    continue;
+                case "2>>":
+                    redirState = RedirState.AppendError;
                     continue;
             }
 
-            if (redirect)
+            if (redirState is RedirState.RedirectOutput or RedirState.AppendOutput)
             {
                 outputFile = processedInput[i];
                 break;
             }
 
-            if (errorRedirect)
+            if (redirState is RedirState.RedirectError or RedirState.AppendError)
             {
                 errorFile = processedInput[i];
                 break;
@@ -67,23 +75,6 @@ while (true)
             return 0;
         case "echo":
         {
-            //if (string.IsNullOrEmpty(outputFile) == false)
-            //{
-            //    File.WriteAllText(outputFile, commandArgs + Environment.NewLine);
-            //}
-            //else if (string.IsNullOrEmpty(errorFile) == false)
-            //{
-            //    Console.WriteLine(commandArgs);
-            //    if (File.Exists(errorFile) == false)
-            //    {
-            //        using (File.Create(errorFile)) ;
-            //    }
-            //}
-            //else
-            //{
-            //    Console.WriteLine(commandArgs);
-            //}
-
             output = $"{commandArgs}\n";
 
             break;
@@ -92,7 +83,6 @@ while (true)
             if (builtinCommands.Contains(commandArgs))
             {
                 output = $"{commandArgs} is a shell builtin\n";
-                //Console.WriteLine($"{commandArgs} is a shell builtin");
             }
             else
             {
@@ -101,13 +91,11 @@ while (true)
                     output = $"{commandArgs} is {fullPath}\n";
                 else
                     error = $"{commandArgs}: not found\n";
-                //Console.WriteLine(found ? $"{commandArgs} is {fullPath}" : $"{commandArgs}: not found");
             }
 
             break;
         case "pwd":
             output = $"{Directory.GetCurrentDirectory()}\n";
-            //Console.WriteLine(Directory.GetCurrentDirectory());
 
             break;
         case "cd":
@@ -125,7 +113,6 @@ while (true)
             else
             {
                 error = $"cd: {commandArgs}: No such file or directory\n";
-                //Console.WriteLine($"cd: {commandArgs}: No such file or directory");
             }
 
             break;
@@ -160,24 +147,35 @@ while (true)
     }
 
     if (outputFile != null)
-        File.WriteAllText(outputFile, output);
+    {
+        if (redirState == RedirState.RedirectOutput)
+            File.WriteAllText(outputFile, output);
+        else if (redirState == RedirState.AppendOutput) 
+            File.AppendAllText(outputFile, output);
+    }
     else
+    {
         Console.Write(output);
+    }
 
     if (errorFile != null)
+    {
         File.WriteAllText(errorFile, error);
+    }
     else
+    {
         Console.Write(error);
+    }
 }
 
-bool HasExecutePermission(string filePath)
+static bool HasExecutePermission(string filePath)
 {
     var fileInfo = new FileInfo(filePath);
     var unixFileMode = fileInfo.UnixFileMode;
     return (unixFileMode & UnixFileMode.UserExecute) != 0;
 }
 
-bool TryGetCommandDir(string command, out string? fullPath)
+static bool TryGetCommandDir(string command, out string? fullPath)
 {
     var path = Environment.GetEnvironmentVariable("PATH");
     var pathDirectories = path?.Split(Path.PathSeparator);
@@ -199,7 +197,7 @@ bool TryGetCommandDir(string command, out string? fullPath)
     return false;
 }
 
-List<string> ProcessConsoleText(string text)
+static List<string> ProcessConsoleText(string text)
 {
     var resultBuilder = new StringBuilder();
     var openSingleQuote = false;
@@ -253,4 +251,13 @@ static void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, c
 {
     if (openDoubleQuote && backSlash && c != '\\' && c != '"')
         stringBuilder.Append('\\');
+}
+
+enum RedirState
+{
+    None,
+    RedirectOutput,
+    AppendOutput,
+    RedirectError,
+    AppendError
 }
