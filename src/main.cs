@@ -3,6 +3,9 @@ using System.Text;
 
 var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd", "cd" };
 
+List<string> redirectArgs = new List<string>();
+List<string> argsList = new List<string>();
+
 while (true)
 {
     Console.Write("$ ");
@@ -13,16 +16,32 @@ while (true)
     if (input == null)
         continue;
 
+    redirectArgs.Clear();
+    argsList.Clear();
+    
     var processedInput = ProcessConsoleText(input.Trim());
-
-    //var words = input.Split(' ');
     var command = processedInput[0];
-    var argList = new List<string>();
     var commandArgs = string.Empty;
+    
     if (processedInput.Count > 1)
     {
-        argList = processedInput[1..];
-        commandArgs = string.Join(' ', argList);
+        var beforeRedirect = true;
+        for (var i = 1; i < processedInput.Count; i++)
+        {
+            if (processedInput[i] == ">" || processedInput[i] == "1>")
+            {
+                beforeRedirect = false;
+                continue;
+            }
+            
+            if (beforeRedirect)
+                argsList.Add(processedInput[i]);
+            else
+                redirectArgs.Add(processedInput[i]);
+        }
+        
+        //argsList = processedInput[1..];
+        commandArgs = string.Join(' ', argsList);
     }
 
     switch (command)
@@ -31,7 +50,14 @@ while (true)
             return 0;
         case "echo":
         {
-            Console.WriteLine(commandArgs);
+            if (redirectArgs.Count > 0)
+            {
+                File.WriteAllText(redirectArgs[0], commandArgs + Environment.NewLine);
+            }
+            else
+            {
+                Console.WriteLine(commandArgs);
+            }
 
             break;
         }
@@ -81,7 +107,7 @@ while (true)
                     RedirectStandardOutput = true
                 };
 
-                foreach (var arg in argList)
+                foreach (var arg in argsList)
                     startInfo.ArgumentList.Add(arg);
 
 
@@ -90,8 +116,16 @@ while (true)
                 var error = process?.StandardError.ReadToEnd();
                 process?.WaitForExit();
 
-                if (string.IsNullOrEmpty(output) == false)
+                if (redirectArgs.Count > 0)
+                {
+                    //Console.WriteLine($"Redirect args {redirectArgs[0]}");
+                    File.WriteAllText(redirectArgs[0], output);
+                }
+                else
+                {
                     Console.Write(output);
+                }
+
 
                 if (string.IsNullOrEmpty(error) == false)
                     Console.Write(error);
@@ -184,7 +218,7 @@ List<string> ProcessConsoleText(string text)
     return argList;
 }
 
-void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, char c, StringBuilder stringBuilder)
+static void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, char c, StringBuilder stringBuilder)
 {
     if (openDoubleQuote && backSlash && c != '\\' && c != '"')
         stringBuilder.Append('\\');
