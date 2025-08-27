@@ -1,18 +1,21 @@
 using System.Diagnostics;
 using System.Text;
+using ReadLine;
 
 var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd", "cd" };
 
 List<string> argsList = new List<string>();
+
+ReadLine.ReadLine.Context.AutoCompletionHandler = new AutoCompleteHandler();
 
 while (true)
 {
     Console.Write("$ ");
 
     // Wait for user input
-    var input = Console.ReadLine();
+    var input = ReadLine.ReadLine.Read();
 
-    if (input == null)
+    if (string.IsNullOrEmpty(input))
         continue;
 
     string? outputFile = null;
@@ -27,7 +30,6 @@ while (true)
 
     if (processedInput.Count > 1)
     {
-        
         for (var i = 1; i < processedInput.Count; i++)
         {
             switch (processedInput[i])
@@ -150,7 +152,7 @@ while (true)
     {
         if (redirState == RedirState.RedirectOutput)
             File.WriteAllText(outputFile, output);
-        else if (redirState == RedirState.AppendOutput) 
+        else if (redirState == RedirState.AppendOutput)
             File.AppendAllText(outputFile, output);
     }
     else
@@ -162,7 +164,7 @@ while (true)
     {
         if (redirState == RedirState.RedirectError)
             File.WriteAllText(errorFile, error);
-        else if (redirState == RedirState.AppendError) 
+        else if (redirState == RedirState.AppendError)
             File.AppendAllText(errorFile, error);
     }
     else
@@ -256,11 +258,26 @@ static void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, c
         stringBuilder.Append('\\');
 }
 
-enum RedirState
+internal enum RedirState
 {
     None,
     RedirectOutput,
     AppendOutput,
     RedirectError,
     AppendError
+}
+
+internal class AutoCompleteHandler : IAutoCompleteHandler
+{
+    public char[] Separators { get; set; } = [' ', '.', '/'];
+
+    public string[] GetSuggestions(string text, int index)
+    {
+        if (text.StartsWith("ech"))
+            return ["echo "];
+        if (text.StartsWith("exi"))
+            return ["exit "];
+
+        return null!;
+    }
 }
