@@ -22,7 +22,7 @@ while (true)
     string? errorFile = null;
     argsList.Clear();
 
-    var processedInput = ProcessConsoleText(input.Trim());
+    var processedInput = ShellHelpers.ProcessConsoleText(input.Trim());
     var command = processedInput[0];
     var commandArgs = string.Empty;
 
@@ -88,7 +88,7 @@ while (true)
             }
             else
             {
-                var found = TryGetCommandDir(commandArgs, out var fullPath);
+                var found = ShellHelpers.TryGetCommandDir(commandArgs, out var fullPath);
                 if (found)
                     output = $"{commandArgs} is {fullPath}\n";
                 else
@@ -119,7 +119,7 @@ while (true)
 
             break;
         default:
-            var foundExe = TryGetCommandDir(command, out _);
+            var foundExe = ShellHelpers.TryGetCommandDir(command, out _);
 
             if (foundExe)
             {
@@ -173,90 +173,10 @@ while (true)
     }
 }
 
-static bool HasExecutePermission(string filePath)
-{
-    var fileInfo = new FileInfo(filePath);
-    var unixFileMode = fileInfo.UnixFileMode;
-    return (unixFileMode & UnixFileMode.UserExecute) != 0;
-}
 
-static bool TryGetCommandDir(string command, out string? fullPath)
-{
-    var path = Environment.GetEnvironmentVariable("PATH");
-    var pathDirectories = path?.Split(Path.PathSeparator);
 
-    fullPath = null;
 
-    if (pathDirectories == null)
-        return false;
 
-    foreach (var directory in pathDirectories)
-    {
-        fullPath = Path.Join(directory, command);
-        if (File.Exists(fullPath) == false || HasExecutePermission(fullPath) == false)
-            continue;
-
-        return true;
-    }
-
-    return false;
-}
-
-static List<string> ProcessConsoleText(string text)
-{
-    var resultBuilder = new StringBuilder();
-    var openSingleQuote = false;
-    var openDoubleQuote = false;
-    var backSlash = false;
-    var argList = new List<string>();
-
-    foreach (var c in text)
-    {
-        if (c == '\\' && openSingleQuote == false && backSlash == false)
-        {
-            backSlash = true;
-            continue;
-        }
-
-        if (c == '"' && openSingleQuote == false && backSlash == false)
-        {
-            openDoubleQuote = !openDoubleQuote;
-            continue;
-        }
-
-        if (c == '\'' && openDoubleQuote == false && backSlash == false)
-        {
-            openSingleQuote = !openSingleQuote;
-            continue;
-        }
-
-        if (openDoubleQuote || openSingleQuote || backSlash || char.IsWhiteSpace(c) == false)
-        {
-            HandleBackslashInDoubleQuote(openDoubleQuote, backSlash, c, resultBuilder);
-
-            resultBuilder.Append(c);
-            backSlash = false;
-            continue;
-        }
-
-        if (resultBuilder.Length > 0)
-        {
-            argList.Add(resultBuilder.ToString());
-            resultBuilder.Clear();
-        }
-    }
-
-    if (resultBuilder.Length > 0)
-        argList.Add(resultBuilder.ToString());
-
-    return argList;
-}
-
-static void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, char c, StringBuilder stringBuilder)
-{
-    if (openDoubleQuote && backSlash && c != '\\' && c != '"')
-        stringBuilder.Append('\\');
-}
 
 internal enum RedirState
 {
@@ -280,6 +200,32 @@ internal class AutoCompleteHandler : IAutoCompleteHandler
         if (text.StartsWith("typ"))
             return ["type "];
 
+        var path = Environment.GetEnvironmentVariable("PATH");
+        var pathDirectories = path?.Split(Path.PathSeparator);
+        var suggestions = new List<string>();
+
+        if (pathDirectories != null)
+        {
+            foreach (var directory in pathDirectories)
+            {
+                if (Directory.Exists(directory) == false)
+                    continue;
+                
+                foreach (var filePath in Directory.GetFiles(directory))
+                {
+                    var fileName = Path.GetFileName(filePath);
+                    if (fileName.StartsWith(text) && ShellHelpers.HasExecutePermission(filePath))
+                    {
+                        suggestions.Add(fileName + " ");
+                        //Console.Write(" " + fileName + " ");
+                    }
+                }
+            }
+        }
+
+        if (suggestions.Count > 0)
+            return suggestions.ToArray();
+        
         Console.Write("\a");
         return null!;
     }
