@@ -277,7 +277,10 @@ internal class AutoCompleteHandler : IAutoCompleteHandler
             return ["echo "];
         if (text.StartsWith("exi"))
             return ["exit "];
+        if (text.StartsWith("typ"))
+            return ["type "];
 
+        Console.Write("\a");
         return null!;
     }
 }
