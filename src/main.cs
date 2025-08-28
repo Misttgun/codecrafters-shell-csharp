@@ -10,10 +10,8 @@ ReadLine.ReadLine.Context.AutoCompletionHandler = new AutoCompleteHandler();
 
 while (true)
 {
-    Console.Write("$ ");
-
     // Wait for user input
-    var input = ReadLine.ReadLine.Read();
+    var input = ReadLine.ReadLine.Read("$ ");
 
     if (string.IsNullOrEmpty(input))
         continue;
@@ -199,6 +197,8 @@ internal class AutoCompleteHandler : IAutoCompleteHandler
             return ["exit "];
         if (text.StartsWith("typ"))
             return ["type "];
+        //if (text.StartsWith("xyz"))
+        //    return ["xyz_bar ", "xyz_baz ", "xyz_quz "];
 
         var path = Environment.GetEnvironmentVariable("PATH");
         var pathDirectories = path?.Split(Path.PathSeparator);
@@ -217,14 +217,17 @@ internal class AutoCompleteHandler : IAutoCompleteHandler
                     if (fileName.StartsWith(text) && ShellHelpers.HasExecutePermission(filePath))
                     {
                         suggestions.Add(fileName + " ");
-                        //Console.Write(" " + fileName + " ");
                     }
                 }
             }
         }
-
+        
         if (suggestions.Count > 0)
-            return suggestions.ToArray();
+        {
+            var result = suggestions.ToArray();
+            Array.Sort(result);
+            return result;
+        }
         
         Console.Write("\a");
         return null!;

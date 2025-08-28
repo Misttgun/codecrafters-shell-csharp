@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -21,6 +20,7 @@ namespace ReadLine
         private bool IsStartOfLine() => _cursorPos == 0;
         private bool IsEndOfLine() => _cursorPos == _text.Length;
         private bool IsInAutoCompleteMode() => _completions.Count > 0;
+        private bool _isMultipleCompletion;
 
         void MoveCursorPos(int len)
         {
@@ -85,6 +85,7 @@ namespace ReadLine
         }
 
         private void WriteString(string c) => WriteString(c, _context.InsertionMode);
+
         private void WriteString(string c, bool overwrite)
         {
             string trailing = "";
@@ -97,6 +98,7 @@ namespace ReadLine
             MoveCursorPos(-trailing.Length);
             _cursorPos += c.Length;
         }
+
         private void ConsoleWrite(string str, bool passwordMode)
         {
             if (str.Length > 0)
@@ -139,8 +141,15 @@ namespace ReadLine
 
         private void TransposeChars()
         {
-            if (IsStartOfLine()) { return; }
-            if (_text.Length < 2) { return; }
+            if (IsStartOfLine())
+            {
+                return;
+            }
+
+            if (_text.Length < 2)
+            {
+                return;
+            }
 
             MoveCursorRight();
             var c2 = _text[_cursorPos - 1];
@@ -218,14 +227,12 @@ namespace ReadLine
         {
             _completions.Clear();
             _completionsIndex = 0;
+            _isMultipleCompletion = false;
         }
 
         public string? Text
         {
-            get
-            {
-                return _terminated ? null : _text.ToString();
-            }
+            get { return _terminated ? null : _text.ToString(); }
         }
 
         public KeyHandler(string prompt, ReadContext context, bool passwordMode)
@@ -328,31 +335,53 @@ namespace ReadLine
 
             _keyActions["Tab"] = () =>
             {
+                //if (IsInAutoCompleteMode())
+                //{
+                //    NextAutoComplete();
+                //}
+                //else
+                //{
+                
+                var handler = _context.AutoCompletionHandler;
+
+                if (handler == null || !IsEndOfLine())
+                    return;
+
+                string text = _text.ToString();
+
+                _completionStart = text.LastIndexOfAny(handler.Separators);
+                _completionStart = _completionStart == -1 ? 0 : _completionStart + 1;
+
+                _completions.Clear();
+                var suggestions = handler.GetSuggestions(text, _completionStart);
+
+                if (suggestions != null)
+                    _completions.AddRange(suggestions);
+
                 if (IsInAutoCompleteMode())
                 {
-                    NextAutoComplete();
-                }
-                else
-                {
-                    var handler = _context.AutoCompletionHandler;
-
-                    if (handler == null || !IsEndOfLine())
-                        return;
-
-                    string text = _text.ToString();
-
-                    _completionStart = text.LastIndexOfAny(handler.Separators);
-                    _completionStart = _completionStart == -1 ? 0 : _completionStart + 1;
-
-                    _completions.Clear();
-                    var suggestions = handler.GetSuggestions(text, _completionStart);
-
-                    if (suggestions != null)
-                        _completions.AddRange(suggestions);
-
-                    if (IsInAutoCompleteMode())
+                    if(_completions.Count == 1)
+                    {
                         StartAutoComplete();
+                    }
+                    else if (_completions.Count > 1)
+                    {
+                        if (_isMultipleCompletion)
+                        {
+                            var result = string.Join(" ", _completions);
+                            _context.Console.WriteLine();
+                            _context.Console.WriteLine(result);
+                            _context.Console.Write(prompt + text);
+                            _isMultipleCompletion = false;
+                        }
+                        else
+                        {
+                            _context.Console.Write("\a");
+                            _isMultipleCompletion = true;
+                        }
+                    }
                 }
+                //}
             };
 
             _keyActions["ShiftTab"] = () =>
