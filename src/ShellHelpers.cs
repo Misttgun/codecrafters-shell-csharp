@@ -3,6 +3,35 @@
 
 public static class ShellHelpers
 {
+    public static void ParsePipeline(List<string> parsedInput, List<string> commands, List<List<string>> commandArgs)
+    {
+        if (parsedInput.Count > 1)
+        {
+            var index = 0;
+            var shouldPipe = false;
+
+            for (var i = 1; i < parsedInput.Count; i++)
+            {
+                if (parsedInput[i] == "|")
+                {
+                    shouldPipe = true;
+                    continue;
+                }
+
+                if (shouldPipe)
+                {
+                    commands.Add(parsedInput[i]);
+                    commandArgs.Add([]);
+                    index += 1;
+                    shouldPipe = false;
+                    continue;
+                }
+
+                commandArgs[index].Add(parsedInput[i]);
+            }
+        }
+    }
+    
     public static bool HasExecutePermission(string filePath)
     {
         var fileInfo = new FileInfo(filePath);
@@ -32,7 +61,7 @@ public static class ShellHelpers
         return false;
     }
 
-    public static List<string> ProcessConsoleText(string text)
+    public static List<string> ParseConsoleText(string text)
     {
         var resultBuilder = new StringBuilder();
         var openSingleQuote = false;
@@ -80,6 +109,23 @@ public static class ShellHelpers
             argList.Add(resultBuilder.ToString());
 
         return argList;
+    }
+
+    public static async Task HandleRedirectionAsync(StreamReader reader, string filePath, bool append)
+    {
+        var content = await reader.ReadToEndAsync();
+        if (append)
+            await File.AppendAllTextAsync(filePath, content);
+        else
+            await File.WriteAllTextAsync(filePath, content);
+    }
+
+    public static void HandleRedirection(string? content, string filePath, bool append)
+    {
+        if (append)
+            File.AppendAllTextAsync(filePath, content);
+        else
+            File.WriteAllTextAsync(filePath, content);
     }
 
     private static void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, char c,

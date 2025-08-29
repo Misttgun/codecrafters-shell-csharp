@@ -1,10 +1,10 @@
-using System.Diagnostics;
-using System.Text;
 using ReadLine;
+using System;
+using System.Diagnostics;
+using System.Reflection.Metadata;
+using System.Text;
 
 var builtinCommands = new HashSet<string>() { "exit", "echo", "type", "pwd", "cd" };
-
-List<string> argsList = new List<string>();
 
 ReadLine.ReadLine.Context.AutoCompletionHandler = new AutoCompleteHandler();
 
@@ -16,158 +16,208 @@ while (true)
     if (string.IsNullOrEmpty(input))
         continue;
 
-    string? outputFile = null;
-    string? errorFile = null;
-    argsList.Clear();
+    var processedInput = ShellHelpers.ParseConsoleText(input.Trim());
+    var commands = new List<string>();
+    var commandArgs = new List<List<string>>();
 
-    var processedInput = ShellHelpers.ProcessConsoleText(input.Trim());
-    var command = processedInput[0];
-    var commandArgs = string.Empty;
+    commands.Add(processedInput[0]);
+    commandArgs.Add([]);
 
-    var redirState = RedirState.None;
-
-    if (processedInput.Count > 1)
-    {
-        for (var i = 1; i < processedInput.Count; i++)
-        {
-            switch (processedInput[i])
-            {
-                case ">":
-                case "1>":
-                    redirState = RedirState.RedirectOutput;
-                    continue;
-                case "2>":
-                    redirState = RedirState.RedirectError;
-                    continue;
-                case ">>":
-                case "1>>":
-                    redirState = RedirState.AppendOutput;
-                    continue;
-                case "2>>":
-                    redirState = RedirState.AppendError;
-                    continue;
-            }
-
-            if (redirState is RedirState.RedirectOutput or RedirState.AppendOutput)
-            {
-                outputFile = processedInput[i];
-                break;
-            }
-
-            if (redirState is RedirState.RedirectError or RedirState.AppendError)
-            {
-                errorFile = processedInput[i];
-                break;
-            }
-
-            argsList.Add(processedInput[i]);
-        }
-
-        commandArgs = string.Join(' ', argsList);
-    }
+    // Handle pipeline
+    ShellHelpers.ParsePipeline(processedInput, commands, commandArgs);
 
     string? output = null;
     string? error = null;
 
-    switch (command)
+    // Handle pipeline (executable only for now)
+    if (commands.Count > 1)
     {
-        case "exit":
-            return 0;
-        case "echo":
+        var leftCmd = commands[0];
+        var rightCmd = commands[1];
+
+        if (ShellHelpers.TryGetCommandDir(leftCmd, out _) == false)
         {
-            output = $"{commandArgs}\n";
-
-            break;
+            Console.Error.Write($"{leftCmd}: command not found\n");
+            continue;
         }
-        case "type":
-            if (builtinCommands.Contains(commandArgs))
-            {
-                output = $"{commandArgs} is a shell builtin\n";
-            }
-            else
-            {
-                var found = ShellHelpers.TryGetCommandDir(commandArgs, out var fullPath);
-                if (found)
-                    output = $"{commandArgs} is {fullPath}\n";
-                else
-                    error = $"{commandArgs}: not found\n";
-            }
 
-            break;
-        case "pwd":
-            output = $"{Directory.GetCurrentDirectory()}\n";
+        if (ShellHelpers.TryGetCommandDir(rightCmd, out _) == false)
+        {
+            Console.Error.Write($"{rightCmd}: command not found\n");
+            continue;
+        }
 
-            break;
-        case "cd":
-            var home = Environment.GetEnvironmentVariable("HOME");
-            var fallbackHome = Directory.GetCurrentDirectory();
+        using var leftProcess = new Process();
+        leftProcess.StartInfo = new ProcessStartInfo
+        {
+            FileName = leftCmd,
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true
+        };
 
-            if (commandArgs == "~")
-            {
-                Directory.SetCurrentDirectory(home ?? fallbackHome);
-            }
-            else if (Directory.Exists(commandArgs))
-            {
-                Directory.SetCurrentDirectory(commandArgs);
-            }
-            else
-            {
-                error = $"cd: {commandArgs}: No such file or directory\n";
-            }
+        using var rightProcess = new Process();
+        rightProcess.StartInfo = new ProcessStartInfo
+        {
+            FileName = rightCmd,
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardInput = true
+        };
 
-            break;
-        default:
-            var foundExe = ShellHelpers.TryGetCommandDir(command, out _);
+        foreach (var arg in commandArgs[0])
+            leftProcess.StartInfo.ArgumentList.Add(arg);
 
-            if (foundExe)
+        foreach (var arg in commandArgs[1])
+            rightProcess.StartInfo.ArgumentList.Add(arg);
+
+        leftProcess.Start();
+        rightProcess.Start();
+
+        var copyTask = leftProcess.StandardOutput.BaseStream.CopyToAsync(rightProcess.StandardInput.BaseStream)
+            .ContinueWith(_ => rightProcess.StandardInput.Close());
+
+        leftProcess.WaitForExit();
+        rightProcess.WaitForExit();
+        copyTask.Wait();
+    }
+    else
+    {
+        var parsedCmd = new ParsedCommand();
+
+        var commandArgsStr = string.Empty;
+        var redirState = RedirState.None;
+
+        if (commandArgs[0].Count > 0)
+        {
+            foreach (var arg in commandArgs[0])
             {
-                var startInfo = new ProcessStartInfo
+                switch (arg)
                 {
-                    FileName = command,
-                    UseShellExecute = false,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true
-                };
+                    case ">":
+                    case "1>":
+                        redirState = RedirState.RedirectOutput;
+                        continue;
+                    case "2>":
+                        redirState = RedirState.RedirectError;
+                        continue;
+                    case ">>":
+                    case "1>>":
+                        redirState = RedirState.AppendOutput;
+                        continue;
+                    case "2>>":
+                        redirState = RedirState.AppendError;
+                        continue;
+                }
 
-                foreach (var arg in argsList)
-                    startInfo.ArgumentList.Add(arg);
-
-
-                var process = Process.Start(startInfo);
-                output = process?.StandardOutput.ReadToEnd();
-                error = process?.StandardError.ReadToEnd();
-                process?.WaitForExit();
+                if (redirState is RedirState.RedirectOutput or RedirState.AppendOutput)
+                {
+                    parsedCmd.OutputFile = arg;
+                    parsedCmd.AppendOutput = redirState == RedirState.AppendOutput;
+                }
+                else if (redirState is RedirState.RedirectError or RedirState.AppendError)
+                {
+                    parsedCmd.ErrorFile = arg;
+                    parsedCmd.AppendError = redirState == RedirState.AppendError;
+                }
+                else
+                {
+                    parsedCmd.Args.Add(arg);
+                }
             }
-            else
+
+            commandArgsStr = string.Join(' ', parsedCmd.Args);
+        }
+
+        parsedCmd.Command = commands[0];
+
+        switch (parsedCmd.Command)
+        {
+            case "exit":
+                return 0;
+            case "echo":
             {
-                error = $"{input}: command not found\n";
+                output = $"{commandArgsStr}\n";
+
+                break;
             }
+            case "type":
+                if (builtinCommands.Contains(commandArgsStr))
+                {
+                    output = $"{commandArgsStr} is a shell builtin\n";
+                }
+                else
+                {
+                    var found = ShellHelpers.TryGetCommandDir(commandArgsStr, out var fullPath);
+                    if (found)
+                        output = $"{commandArgsStr} is {fullPath}\n";
+                    else
+                        error = $"{commandArgsStr}: not found\n";
+                }
 
-            break;
-    }
+                break;
+            case "pwd":
+                output = $"{Directory.GetCurrentDirectory()}\n";
 
-    if (outputFile != null)
-    {
-        if (redirState == RedirState.RedirectOutput)
-            File.WriteAllText(outputFile, output);
-        else if (redirState == RedirState.AppendOutput)
-            File.AppendAllText(outputFile, output);
-    }
-    else
-    {
-        Console.Write(output);
-    }
+                break;
+            case "cd":
+                var home = Environment.GetEnvironmentVariable("HOME");
+                var fallbackHome = Directory.GetCurrentDirectory();
 
-    if (errorFile != null)
-    {
-        if (redirState == RedirState.RedirectError)
-            File.WriteAllText(errorFile, error);
-        else if (redirState == RedirState.AppendError)
-            File.AppendAllText(errorFile, error);
-    }
-    else
-    {
-        Console.Write(error);
+                if (commandArgsStr == "~")
+                {
+                    Directory.SetCurrentDirectory(home ?? fallbackHome);
+                }
+                else if (Directory.Exists(commandArgsStr))
+                {
+                    Directory.SetCurrentDirectory(commandArgsStr);
+                }
+                else
+                {
+                    error = $"cd: {commandArgsStr}: No such file or directory\n";
+                }
+
+                break;
+            default:
+                var foundExe = ShellHelpers.TryGetCommandDir(parsedCmd.Command, out _);
+
+                if (foundExe)
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = parsedCmd.Command,
+                        UseShellExecute = false,
+                        RedirectStandardError = true,
+                        RedirectStandardOutput = true,
+                    };
+
+                    foreach (var arg in parsedCmd.Args)
+                        startInfo.ArgumentList.Add(arg);
+
+                    var process = Process.Start(startInfo);
+
+                    output = process?.StandardOutput.ReadToEnd();
+                    error = process?.StandardError.ReadToEnd();
+
+                    process?.WaitForExit();
+                }
+                else
+                {
+                    error = $"{input}: command not found\n";
+                }
+
+                break;
+        }
+
+        if (parsedCmd.OutputFile != null)
+            ShellHelpers.HandleRedirection(output, parsedCmd.OutputFile, parsedCmd.AppendOutput);
+        else
+            Console.Write(output);
+
+        if (parsedCmd.ErrorFile != null)
+            ShellHelpers.HandleRedirection(error, parsedCmd.ErrorFile, parsedCmd.AppendError);
+        else
+            Console.Error.Write(error);
     }
 }
 
@@ -179,6 +229,16 @@ internal enum RedirState
     AppendOutput,
     RedirectError,
     AppendError
+}
+
+internal class ParsedCommand
+{
+    public string Command { get; set; } = string.Empty;
+    public List<string> Args { get; set; } = [];
+    public string? OutputFile;
+    public string? ErrorFile;
+    public bool AppendOutput;
+    public bool AppendError;
 }
 
 internal class AutoCompleteHandler : IAutoCompleteHandler
