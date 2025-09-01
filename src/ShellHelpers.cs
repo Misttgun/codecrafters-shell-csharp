@@ -1,35 +1,15 @@
-﻿using System.Text;
-
+﻿using System.Collections.Generic;
+using System.Text;
 
 public static class ShellHelpers
 {
-    public static void ParsePipeline(List<string> parsedInput, List<string> commands, List<List<string>> commandArgs)
+    private enum RedirState
     {
-        if (parsedInput.Count > 1)
-        {
-            var index = 0;
-            var shouldPipe = false;
-
-            for (var i = 1; i < parsedInput.Count; i++)
-            {
-                if (parsedInput[i] == "|")
-                {
-                    shouldPipe = true;
-                    continue;
-                }
-
-                if (shouldPipe)
-                {
-                    commands.Add(parsedInput[i]);
-                    commandArgs.Add([]);
-                    index += 1;
-                    shouldPipe = false;
-                    continue;
-                }
-
-                commandArgs[index].Add(parsedInput[i]);
-            }
-        }
+        None,
+        RedirectOutput,
+        AppendOutput,
+        RedirectError,
+        AppendError
     }
     
     public static bool HasExecutePermission(string filePath)
@@ -61,7 +41,7 @@ public static class ShellHelpers
         return false;
     }
 
-    public static List<string> ParseConsoleText(string text)
+    public static ParsedCommand ParseConsoleText(string text)
     {
         var resultBuilder = new StringBuilder();
         var openSingleQuote = false;
@@ -108,16 +88,51 @@ public static class ShellHelpers
         if (resultBuilder.Length > 0)
             argList.Add(resultBuilder.ToString());
 
-        return argList;
-    }
+        var parsedCommand = new ParsedCommand
+        {
+            Command = argList[0]
+        };
 
-    public static async Task HandleRedirectionAsync(StreamReader reader, string filePath, bool append)
-    {
-        var content = await reader.ReadToEndAsync();
-        if (append)
-            await File.AppendAllTextAsync(filePath, content);
-        else
-            await File.WriteAllTextAsync(filePath, content);
+        var redirState = RedirState.None;
+        
+        for (var i = 1; i < argList.Count; i++)
+        {
+            var arg = argList[i];
+            switch (arg)
+            {
+                case ">":
+                case "1>":
+                    redirState = RedirState.RedirectOutput;
+                    continue;
+                case "2>":
+                    redirState = RedirState.RedirectError;
+                    continue;
+                case ">>":
+                case "1>>":
+                    redirState = RedirState.AppendOutput;
+                    continue;
+                case "2>>":
+                    redirState = RedirState.AppendError;
+                    continue;
+            }
+
+            if (redirState is RedirState.RedirectOutput or RedirState.AppendOutput)
+            {
+                parsedCommand.OutputFile = arg;
+                parsedCommand.AppendOutput = redirState == RedirState.AppendOutput;
+            }
+            else if (redirState is RedirState.RedirectError or RedirState.AppendError)
+            {
+                parsedCommand.ErrorFile = arg;
+                parsedCommand.AppendError = redirState == RedirState.AppendError;
+            }
+            else
+            {
+                parsedCommand.Args.Add(arg);
+            }
+        }
+
+        return parsedCommand;
     }
 
     public static void HandleRedirection(string? content, string filePath, bool append)
