@@ -4,7 +4,9 @@ using System.Text;
 internal class Shell
 {
     public readonly HashSet<string> BuiltinCommands = ["exit", "echo", "type", "pwd", "cd", "history"];
-    private readonly HashSet<string> _historyArgs = ["-r", "-w"];
+    private readonly HashSet<string> _historyArgs = ["-r", "-w", "-a"];
+
+    private int _lastHistoryAppend = -1;
 
     public CommandResult HandleBuiltInCommand(ParsedCommand parsedCmd)
     {
@@ -85,7 +87,7 @@ internal class Shell
                                 error = $"history: {commandArgsStr} is not a valid argument\n";
                                 break;
                             }
-                            
+
                             ReadLine.ReadLine.Context.History.AddRange(File.ReadAllLines(filePath));
                             break;
                         }
@@ -93,6 +95,18 @@ internal class Shell
                         if (historyArg == "-w") // Write history to file
                         {
                             File.WriteAllLines(filePath, ReadLine.ReadLine.Context.History);
+                            break;
+                        }
+
+                        if (historyArg == "-a") // Append history to file
+                        {
+                            var historyToAppend = _lastHistoryAppend == -1
+                                ? ReadLine.ReadLine.Context.History
+                                : ReadLine.ReadLine.Context.History[_lastHistoryAppend..];
+
+                            _lastHistoryAppend = ReadLine.ReadLine.Context.History.Count;
+
+                            File.AppendAllLines(filePath, historyToAppend);
                             break;
                         }
                     }
