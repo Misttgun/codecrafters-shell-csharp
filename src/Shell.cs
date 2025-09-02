@@ -4,6 +4,7 @@ using System.Text;
 internal class Shell
 {
     public readonly HashSet<string> BuiltinCommands = ["exit", "echo", "type", "pwd", "cd", "history"];
+    private readonly HashSet<string> _historyArgs = ["-r"];
 
     public CommandResult HandleBuiltInCommand(ParsedCommand parsedCmd)
     {
@@ -11,17 +12,17 @@ internal class Shell
         string? output = null;
         string? error = null;
         var exitCode = -1;
-        
+
         switch (parsedCmd.Command)
         {
             case "exit":
                 exitCode = 0;
-                
+
                 break;
             case "echo":
             {
                 output = $"{commandArgsStr}\n";
-                
+
                 break;
             }
             case "type":
@@ -63,14 +64,26 @@ internal class Shell
                 break;
             case "history":
 
-                int startIndex;
-                if (string.IsNullOrEmpty(commandArgsStr))
+                var startIndex = 0;
+                if (parsedCmd.Args.Count > 0) // If we pass arguments
                 {
-                    startIndex = 0;
-                }
-                else
-                {
-                    if (int.TryParse(commandArgsStr, out var historyCount))
+                    if (_historyArgs.Contains(parsedCmd.Args[0]))
+                    {
+                        var historyArg = parsedCmd.Args[0];
+                        var filePath = parsedCmd.Args.Count == 2 ? parsedCmd.Args[1] : null;
+                        if (File.Exists(filePath) == false)
+                        {
+                            error = $"history: {commandArgsStr} is not a valid argument\n";
+                            break;
+                        }
+                        
+                        if (historyArg == "-r") // Read history from file and add it to current history
+                        {
+                            ReadLine.ReadLine.Context.History.AddRange(File.ReadAllLines(filePath));
+                            break;
+                        }
+                    }
+                    else if (int.TryParse(commandArgsStr, out var historyCount))
                     {
                         startIndex = Math.Max(0, ReadLine.ReadLine.Context.History.Count - historyCount);
                     }
@@ -82,12 +95,13 @@ internal class Shell
                 }
 
                 var builder = new StringBuilder();
-                
+
                 for (var i = startIndex; i < ReadLine.ReadLine.Context.History.Count; i++)
                 {
                     var line = ReadLine.ReadLine.Context.History[i];
                     builder.AppendLine($"    {i + 1}  {line}");
                 }
+
                 output = builder.ToString();
                 break;
         }
@@ -99,7 +113,7 @@ internal class Shell
     {
         string? output = null;
         string? error;
-        
+
         var foundExe = ShellHelpers.TryGetCommandDir(parsedCmd.Command, out _);
 
         if (foundExe)
@@ -129,7 +143,6 @@ internal class Shell
 
         return new CommandResult(-1, output, error);
     }
-
 }
 
 public class ParsedCommand
