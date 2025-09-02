@@ -8,6 +8,13 @@ internal class Shell
 
     private int _lastHistoryAppend = -1;
 
+    public Shell()
+    {
+        var historyFilePath = Environment.GetEnvironmentVariable("HISTFILE");
+        if (Path.Exists(historyFilePath))
+            ReadLine.ReadLine.Context.History.AddRange(File.ReadAllLines(historyFilePath));
+    }
+
     public CommandResult HandleBuiltInCommand(ParsedCommand parsedCmd)
     {
         var commandArgsStr = string.Join(' ', parsedCmd.Args);
