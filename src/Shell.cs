@@ -62,13 +62,32 @@ internal class Shell
 
                 break;
             case "history":
+
+                int startIndex;
+                if (string.IsNullOrEmpty(commandArgsStr))
+                {
+                    startIndex = 0;
+                }
+                else
+                {
+                    if (int.TryParse(commandArgsStr, out var historyCount))
+                    {
+                        startIndex = Math.Max(0, ReadLine.ReadLine.Context.History.Count - historyCount);
+                    }
+                    else
+                    {
+                        error = $"history: {commandArgsStr} is not a valid argument\n";
+                        break;
+                    }
+                }
+
                 var builder = new StringBuilder();
-                for (var i = 0; i < ReadLine.ReadLine.Context.History.Count; i++)
+                
+                for (var i = startIndex; i < ReadLine.ReadLine.Context.History.Count; i++)
                 {
                     var line = ReadLine.ReadLine.Context.History[i];
                     builder.AppendLine($"    {i + 1}  {line}");
                 }
-
                 output = builder.ToString();
                 break;
         }

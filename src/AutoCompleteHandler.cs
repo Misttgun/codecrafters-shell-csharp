@@ -12,6 +12,8 @@ internal class AutoCompleteHandler : IAutoCompleteHandler
             return ["exit "];
         if (text.StartsWith("typ"))
             return ["type "];
+        if (text.StartsWith("his"))
+            return ["history "];
 
         var path = Environment.GetEnvironmentVariable("PATH");
         var pathDirectories = path?.Split(Path.PathSeparator);
