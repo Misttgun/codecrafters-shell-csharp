@@ -1,4 +1,5 @@
 ReadLine.ReadLine.Context.AutoCompletionHandler = new AutoCompleteHandler();
+ReadLine.ReadLine.Context.HistoryEnabled = true;
 
 var shell = new Shell();
 

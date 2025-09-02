@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Text;
 
 internal class Shell
 {
@@ -60,6 +61,16 @@ internal class Shell
                 }
 
                 break;
+            case "history":
+                var builder = new StringBuilder();
+                for (var i = 0; i < ReadLine.ReadLine.Context.History.Count; i++)
+                {
+                    var line = ReadLine.ReadLine.Context.History[i];
+                    builder.AppendLine($"    {i + 1}  {line}");
+                }
+
+                output = builder.ToString();
+                break;
         }
 
         return new CommandResult(exitCode, output, error);
@@ -68,7 +79,7 @@ internal class Shell
     public CommandResult HandleExternalCommand(ParsedCommand parsedCmd)
     {
         string? output = null;
-        string? error = null;
+        string? error;
         
         var foundExe = ShellHelpers.TryGetCommandDir(parsedCmd.Command, out _);
 
