@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 internal class Shell
 {
@@ -7,12 +8,12 @@ internal class Shell
     private readonly HashSet<string> _historyArgs = ["-r", "-w", "-a"];
 
     private int _lastHistoryAppend = -1;
+    private string? _historyFilePath = null;
 
     public Shell()
     {
-        var historyFilePath = Environment.GetEnvironmentVariable("HISTFILE");
-        if (Path.Exists(historyFilePath))
-            ReadLine.ReadLine.Context.History.AddRange(File.ReadAllLines(historyFilePath));
+        _historyFilePath = Environment.GetEnvironmentVariable("HISTFILE");
+        ReadHistoryFromFile(_historyFilePath);
     }
 
     public CommandResult HandleBuiltInCommand(ParsedCommand parsedCmd)
@@ -89,19 +90,13 @@ internal class Shell
 
                         if (historyArg == "-r") // Read history from file and add it to current history
                         {
-                            if (File.Exists(filePath) == false)
-                            {
-                                error = $"history: {commandArgsStr} is not a valid argument\n";
-                                break;
-                            }
-
-                            ReadLine.ReadLine.Context.History.AddRange(File.ReadAllLines(filePath));
+                            error = ReadHistoryFromFile(filePath);
                             break;
                         }
 
                         if (historyArg == "-w") // Write history to file
                         {
-                            File.WriteAllLines(filePath, ReadLine.ReadLine.Context.History);
+                            WriteHistoryToFile(filePath);
                             break;
                         }
 
@@ -176,6 +171,32 @@ internal class Shell
         }
 
         return new CommandResult(-1, output, error);
+    }
+
+    private static string? ReadHistoryFromFile(string? filePath)
+    {
+        if (filePath == null) 
+            return null;
+
+        if (File.Exists(filePath) == false)
+            return $"history: {filePath} is not a valid path\n";
+
+        ReadLine.ReadLine.Context.History.AddRange(File.ReadAllLines(filePath));
+        
+        return null;
+    }
+
+    private static void WriteHistoryToFile(string? filePath)
+    {
+        if (filePath == null)
+            return;
+
+        File.WriteAllLines(filePath, ReadLine.ReadLine.Context.History);
+    }
+
+    public void WriteHistoryOnExit()
+    {
+        WriteHistoryToFile(_historyFilePath);
     }
 }
 

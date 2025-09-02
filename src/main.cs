@@ -19,7 +19,10 @@ while (true)
 
     // Handle the exit builtin specific case
     if (exitCode == 0)
+    {
+        shell.WriteHistoryOnExit();
         return 0;
+    }
 
     if (parsedCmd.OutputFile != null)
         ShellHelpers.HandleRedirection(output, parsedCmd.OutputFile, parsedCmd.AppendOutput);
