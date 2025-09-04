@@ -41,13 +41,11 @@ namespace cc_shell
                     UseShellExecute = false,
                     RedirectStandardInput = i > 0, // Redirect stdin if this is NOT the first command in the pipeline.
                     RedirectStandardOutput = isLastCommand == false, // Redirect stdout ONLY if this is NOT the last command in the pipeline.
-                    RedirectStandardError = false 
+                    RedirectStandardError = true
                 };
                 
                 foreach (var arg in command.Args)
-                {
                     processStartInfo.ArgumentList.Add(arg);
-                }
 
                 var process = Process.Start(processStartInfo)!;
 
@@ -71,17 +69,22 @@ namespace cc_shell
                 processes.Add(process);
             }
             
+            var lastProcess = processes.Last();
+            var errorReadTask = lastProcess.StandardError.ReadToEndAsync();
+            
             // Wait for all processes in the pipeline to complete.
             // It's important to wait for all of them to prevent "zombie" processes.
             foreach (var process in processes)
                 process.WaitForExit();
 
-            // The exit code of the entire pipeline is determined by its final command.
-            int finalExitCode = processes.Count > 0 ? processes.Last().ExitCode : -1;
+            // After all processes have exited, we can safely get the result of the error-reading task.
+            string? finalError = errorReadTask.Result;
+            int finalExitCode = lastProcess.ExitCode;
+
 
             // In this simplified model, we do not capture stdout or stderr.
             // The last process writes directly to the console, so we return null for output.
-            return new CommandResult(finalExitCode, null, null);
+            return new CommandResult(finalExitCode, null, finalError);
         }
     }
 }
