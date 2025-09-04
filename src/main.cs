@@ -51,7 +51,7 @@ while (true)
 
     var parsedCmd = ShellHelpers.ParseConsoleText(input.Trim());
 
-    (exitCode, output, error) = shell.IsBuiltin(parsedCmd.Command)
+    (exitCode, output, error) = Shell.IsBuiltin(parsedCmd.Command)
         ? shell.HandleBuiltInCommand(parsedCmd)
         : shell.HandleExternalCommand(parsedCmd);
 

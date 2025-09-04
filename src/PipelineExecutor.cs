@@ -29,7 +29,7 @@ namespace cc_shell
                 var command = stages[i];
                 bool isLastCommand = i == stages.Count - 1;
 
-                if (_shell.IsBuiltin(command.Command))
+                if (Shell.IsBuiltin(command.Command))
                 {
                     // Built-ins are executed synchronously within our own process.
                     var result = _shell.HandleBuiltInCommand(command, isPipeline: true);
@@ -109,7 +109,6 @@ namespace cc_shell
             }
 
             // Wait for any external processes that were started to finish.
-            // Built-ins are synchronous, so they are already complete.
             foreach (var process in processesToWaitFor)
             {
                 // If it's not the last one, it might already be waited for.
@@ -117,9 +116,7 @@ namespace cc_shell
                 if (process.HasExited == false)
                     process.WaitForExit();
             }
-
-            // If the last command was a process, finalExitCode is already set.
-            // If it was a built-in, it was set in the built-in handling block.
+            
             return new CommandResult(finalExitCode, finalStdout, finalStderr);
         }
     }

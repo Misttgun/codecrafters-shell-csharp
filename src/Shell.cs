@@ -5,13 +5,13 @@ namespace cc_shell
 {
     public class Shell
     {
-        private readonly HashSet<string> _BuiltinCommands = ["exit", "echo", "type", "pwd", "cd", "history"];
+        public static readonly HashSet<string> BuiltinCommands = ["exit", "echo", "type", "pwd", "cd", "history"];
         private readonly HashSet<string> _HistoryArgs = ["-r", "-w", "-a"];
 
         private int _LastHistoryAppend = -1;
         private readonly string? _HistoryFilePath;
         
-        public bool IsBuiltin(string command) => _BuiltinCommands.Contains(command);
+        public static bool IsBuiltin(string command) => BuiltinCommands.Contains(command);
 
         public Shell()
         {
