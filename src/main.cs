@@ -1,3 +1,5 @@
+using cc_shell;
+
 ReadLine.ReadLine.Context.AutoCompletionHandler = new AutoCompleteHandler();
 ReadLine.ReadLine.Context.HistoryEnabled = true;
 
@@ -8,20 +10,56 @@ while (true)
     // Wait for user input
     var input = ReadLine.ReadLine.Read("$ ");
 
-    if (string.IsNullOrEmpty(input))
+    if (string.IsNullOrEmpty(input) || string.IsNullOrWhiteSpace(input))
         continue;
+
+    // Detect pipelines and split into segments (respecting quotes and escapes)
+    var segments = ShellHelpers.SplitPipelineSegments(input.Trim());
+    
+    int exitCode = -1;
+    string? output = "";
+    string? error = "";
+
+    if (segments.Count > 1)
+    {
+        // Parse each segment into a ParsedCommand
+        var parsedCommands = new List<ParsedCommand>();
+        foreach (var seg in segments)
+        {
+            var parsed = ShellHelpers.ParseConsoleText(seg.Trim());
+            parsedCommands.Add(parsed);
+        }
+
+        var pipelineExecutor = new PipelineExecutor(shell);
+        (_, output, error) = pipelineExecutor.RunPipeline(parsedCommands);
+
+        // Apply redirection based on the last stage (common shell behavior)
+        var last = parsedCommands[^1];
+
+        if (last.OutputFile != null)
+            ShellHelpers.HandleRedirection(output, last.OutputFile, last.AppendOutput);
+        else
+            Console.Write(output);
+
+        if (last.ErrorFile != null)
+            ShellHelpers.HandleRedirection(error, last.ErrorFile, last.AppendError);
+        else
+            Console.Error.Write(error);
+
+        continue;
+    }
 
     var parsedCmd = ShellHelpers.ParseConsoleText(input.Trim());
 
-    var (exitCode, output, error) = shell.BuiltinCommands.Contains(parsedCmd.Command)
+    (exitCode, output, error) = shell.IsBuiltin(parsedCmd.Command)
         ? shell.HandleBuiltInCommand(parsedCmd)
         : shell.HandleExternalCommand(parsedCmd);
 
     // Handle the exit builtin specific case
-    if (exitCode == 0)
+    if (parsedCmd.Command == "exit")
     {
         shell.WriteHistoryOnExit();
-        return 0;
+        return exitCode;
     }
 
     if (parsedCmd.OutputFile != null)

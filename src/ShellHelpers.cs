@@ -1,152 +1,212 @@
-﻿using System.Collections.Generic;
+﻿using System.Runtime.CompilerServices;
 using System.Text;
 
-public static class ShellHelpers
+namespace cc_shell
 {
-    private enum RedirState
+    public static class ShellHelpers
     {
-        None,
-        RedirectOutput,
-        AppendOutput,
-        RedirectError,
-        AppendError
-    }
-    
-    public static bool HasExecutePermission(string filePath)
-    {
-        var fileInfo = new FileInfo(filePath);
-        var unixFileMode = fileInfo.UnixFileMode;
-        return (unixFileMode & UnixFileMode.UserExecute) != 0;
-    }
-
-    public static bool TryGetCommandDir(string command, out string? fullPath)
-    {
-        var path = Environment.GetEnvironmentVariable("PATH");
-        var pathDirectories = path?.Split(Path.PathSeparator);
-
-        fullPath = null;
-
-        if (pathDirectories == null)
-            return false;
-
-        foreach (var directory in pathDirectories)
+        private enum RedirState
         {
-            fullPath = Path.Join(directory, command);
-            if (File.Exists(fullPath) == false || HasExecutePermission(fullPath) == false)
-                continue;
-
-            return true;
+            None,
+            RedirectOutput,
+            AppendOutput,
+            RedirectError,
+            AppendError
         }
 
-        return false;
-    }
-
-    public static ParsedCommand ParseConsoleText(string text)
-    {
-        var resultBuilder = new StringBuilder();
-        var openSingleQuote = false;
-        var openDoubleQuote = false;
-        var backSlash = false;
-        var argList = new List<string>();
-
-        foreach (var c in text)
+        public static bool HasExecutePermission(string filePath)
         {
-            if (c == '\\' && openSingleQuote == false && backSlash == false)
+            var fileInfo = new FileInfo(filePath);
+            var unixFileMode = fileInfo.UnixFileMode;
+            return (unixFileMode & UnixFileMode.UserExecute) != 0;
+        }
+
+        public static bool TryGetCommandDir(string command, out string? fullPath)
+        {
+            var path = Environment.GetEnvironmentVariable("PATH");
+            var pathDirectories = path?.Split(Path.PathSeparator);
+
+            fullPath = null;
+
+            if (pathDirectories == null)
+                return false;
+
+            foreach (var directory in pathDirectories)
             {
-                backSlash = true;
-                continue;
+                fullPath = Path.Join(directory, command);
+                if (File.Exists(fullPath) == false || HasExecutePermission(fullPath) == false)
+                    continue;
+
+                return true;
             }
 
-            if (c == '"' && openSingleQuote == false && backSlash == false)
+            return false;
+        }
+
+        // Returns true if the character was fully handled (toggle/escape) and should NOT be appended by the caller.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool HandleQuoteAndEscape(char c, ref bool openSingleQuote, ref bool openDoubleQuote, ref bool backSlash,
+            StringBuilder appendTarget)
+        {
+            // Cache flags to avoid repeated loads and enable tighter branching
+            var inSingle = openSingleQuote;
+            var inDouble = openDoubleQuote;
+            var escaped = backSlash;
+
+            switch (c)
             {
-                openDoubleQuote = !openDoubleQuote;
-                continue;
+                case '\\':
+                    if (!inSingle && !escaped)
+                    {
+                        backSlash = true;
+                        return true;
+                    }
+
+                    break;
+
+                case '"':
+                    if (!inSingle && !escaped)
+                    {
+                        openDoubleQuote = !inDouble;
+                        return true;
+                    }
+
+                    break;
+
+                case '\'':
+                    if (!inDouble && !escaped)
+                    {
+                        openSingleQuote = !inSingle;
+                        return true;
+                    }
+
+                    break;
             }
 
-            if (c == '\'' && openDoubleQuote == false && backSlash == false)
-            {
-                openSingleQuote = !openSingleQuote;
-                continue;
-            }
+            // Handle backslash within double quotes
+            if (inDouble && escaped && c != '\\' && c != '"')
+                appendTarget.Append('\\');
 
-            if (openDoubleQuote || openSingleQuote || backSlash || char.IsWhiteSpace(c) == false)
-            {
-                HandleBackslashInDoubleQuote(openDoubleQuote, backSlash, c, resultBuilder);
+            return false;
+        }
 
-                resultBuilder.Append(c);
+
+        // Split the full command line into pipeline segments separated by '|'
+        public static List<string> SplitPipelineSegments(string text)
+        {
+            var segments = new List<string>();
+            var current = new StringBuilder();
+
+            var openSingleQuote = false;
+            var openDoubleQuote = false;
+            var backSlash = false;
+
+            foreach (var c in text)
+            {
+                if (HandleQuoteAndEscape(c, ref openSingleQuote, ref openDoubleQuote, ref backSlash, current))
+                    continue;
+
+                if (c == '|' && !openSingleQuote && !openDoubleQuote && backSlash == false)
+                {
+                    segments.Add(current.ToString().Trim());
+                    current.Clear();
+                    continue;
+                }
+
+                current.Append(c);
                 backSlash = false;
-                continue;
             }
 
-            if (resultBuilder.Length > 0)
+            if (current.Length > 0)
+                segments.Add(current.ToString().Trim());
+
+            segments.RemoveAll(string.IsNullOrWhiteSpace);
+            return segments;
+        }
+
+        public static ParsedCommand ParseConsoleText(string text)
+        {
+            var resultBuilder = new StringBuilder();
+            var openSingleQuote = false;
+            var openDoubleQuote = false;
+            var backSlash = false;
+            var argList = new List<string>();
+
+            foreach (var c in text)
             {
+                if (HandleQuoteAndEscape(c, ref openSingleQuote, ref openDoubleQuote, ref backSlash, resultBuilder))
+                    continue;
+
+                if (openDoubleQuote || openSingleQuote || backSlash || char.IsWhiteSpace(c) == false)
+                {
+                    resultBuilder.Append(c);
+                    backSlash = false;
+                    continue;
+                }
+
+                if (resultBuilder.Length <= 0)
+                    continue;
+
                 argList.Add(resultBuilder.ToString());
                 resultBuilder.Clear();
             }
+
+            if (resultBuilder.Length > 0)
+                argList.Add(resultBuilder.ToString());
+
+            var parsedCommand = new ParsedCommand
+            {
+                Command = argList[0]
+            };
+
+            var redirState = RedirState.None;
+
+            for (var i = 1; i < argList.Count; i++)
+            {
+                var arg = argList[i];
+                switch (arg)
+                {
+                    case ">":
+                    case "1>":
+                        redirState = RedirState.RedirectOutput;
+                        continue;
+                    case "2>":
+                        redirState = RedirState.RedirectError;
+                        continue;
+                    case ">>":
+                    case "1>>":
+                        redirState = RedirState.AppendOutput;
+                        continue;
+                    case "2>>":
+                        redirState = RedirState.AppendError;
+                        continue;
+                }
+
+                switch (redirState)
+                {
+                    case RedirState.RedirectOutput or RedirState.AppendOutput:
+                        parsedCommand.OutputFile = arg;
+                        parsedCommand.AppendOutput = redirState == RedirState.AppendOutput;
+                        break;
+                    case RedirState.RedirectError or RedirState.AppendError:
+                        parsedCommand.ErrorFile = arg;
+                        parsedCommand.AppendError = redirState == RedirState.AppendError;
+                        break;
+                    default:
+                        parsedCommand.Args.Add(arg);
+                        break;
+                }
+            }
+
+            return parsedCommand;
         }
 
-        if (resultBuilder.Length > 0)
-            argList.Add(resultBuilder.ToString());
-
-        var parsedCommand = new ParsedCommand
+        public static void HandleRedirection(string? content, string filePath, bool append)
         {
-            Command = argList[0]
-        };
-
-        var redirState = RedirState.None;
-        
-        for (var i = 1; i < argList.Count; i++)
-        {
-            var arg = argList[i];
-            switch (arg)
-            {
-                case ">":
-                case "1>":
-                    redirState = RedirState.RedirectOutput;
-                    continue;
-                case "2>":
-                    redirState = RedirState.RedirectError;
-                    continue;
-                case ">>":
-                case "1>>":
-                    redirState = RedirState.AppendOutput;
-                    continue;
-                case "2>>":
-                    redirState = RedirState.AppendError;
-                    continue;
-            }
-
-            if (redirState is RedirState.RedirectOutput or RedirState.AppendOutput)
-            {
-                parsedCommand.OutputFile = arg;
-                parsedCommand.AppendOutput = redirState == RedirState.AppendOutput;
-            }
-            else if (redirState is RedirState.RedirectError or RedirState.AppendError)
-            {
-                parsedCommand.ErrorFile = arg;
-                parsedCommand.AppendError = redirState == RedirState.AppendError;
-            }
+            if (append)
+                File.AppendAllTextAsync(filePath, content);
             else
-            {
-                parsedCommand.Args.Add(arg);
-            }
+                File.WriteAllTextAsync(filePath, content);
         }
-
-        return parsedCommand;
-    }
-
-    public static void HandleRedirection(string? content, string filePath, bool append)
-    {
-        if (append)
-            File.AppendAllTextAsync(filePath, content);
-        else
-            File.WriteAllTextAsync(filePath, content);
-    }
-
-    private static void HandleBackslashInDoubleQuote(bool openDoubleQuote, bool backSlash, char c,
-        StringBuilder stringBuilder)
-    {
-        if (openDoubleQuote && backSlash && c != '\\' && c != '"')
-            stringBuilder.Append('\\');
     }
 }
