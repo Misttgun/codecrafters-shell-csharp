@@ -1,34 +1,80 @@
 [![progress-banner](https://backend.codecrafters.io/progress/shell/3b20ac08-eabc-405b-b3b6-57f723c5e686)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for C# solutions to the
+This is my C# solutions to the
 ["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
 
-In this challenge, you'll build your own POSIX compliant shell that's capable of
-interpreting shell commands, running external programs and builtin commands like
-cd, pwd, echo and more. Along the way, you'll learn about shell command parsing,
-REPLs, builtin commands, and more.
+A minimal POSIX-style shell written in C# (.NET 9). It supports built-ins (cd, pwd, echo, type, history), running external programs, simple pipelines, quoting/escaping, and basic output redirection. Includes command auto-completion and async I/O for a responsive experience.
 
-**Note**: If you're viewing this repo on GitHub, head over to
+
+**Note**: Head over to
 [codecrafters.io](https://codecrafters.io) to try the challenge.
 
-# Passing the first stage
+## Features
 
-The entry point for your `shell` implementation is in `src/main.cs`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+- Built-in commands:
+    - echo, type, pwd, cd, history (with -r, -w, -a)
+- Run external commands found on PATH
+- Pipelines: cmd1 | cmd2 | cmd3
+- Quoting and escaping: single quotes, double quotes, backslashes
+- Basic redirection operators in non-pipeline mode:
+    - stdout: >, >>, 1>, 1>>
+    - stderr: 2>, 2>>
+- Command auto-completion (built-ins and executables in PATH)
+- Async file I/O for history and redirections
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
-```
+## Requirements
 
-Time to move on to the next stage!
+- .NET SDK 9.0 (or compatible runtime)
+- Linux environment (uses Unix file permissions and behavior)
 
-# Stage 2 & beyond
+## Usage Examples
 
-Note: This section is for stages 2 and beyond.
+- Built-ins:
+    - Echo: `echo hello world`
+    - Print working directory: `pwd`
+    - Change directory: `cd /tmp` or `cd ~`
+    - Type info: `type echo`, `type ls`
+    - History:
+        - Show last N: `history 5`
+        - Read from file: `history -r /path/to/file`
+        - Write to file: `history -w /path/to/file`
+        - Append to file: `history -a /path/to/file`
 
-1. Ensure you have `dotnet (9.0)` installed locally
-1. Run `./your_program.sh` to run your program, which is implemented in
-   `src/main.cs`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+- External commands:
+    - `ls -la`
+    - `grep main *.cs`
+
+- Pipelines:
+    - `ls -1 | head`
+    - `cat README.md | grep shell`
+
+- Redirection (non-pipeline):
+    - `echo hi > out.txt`
+    - `echo hi >> out.txt`
+    - `somecmd 2> errors.log`
+    - `somecmd 1> out.log 2>> errors.log`
+
+## Notes and Limitations
+
+- Linux-focused: command resolution uses Unix execute permissions.
+- Pipelines are supported for streaming between stages.
+- Output redirection for pipelines is limited: final-stage output is printed to the console; file redirection for pipeline output is not currently supported.
+- Quoting/escaping is implemented to cover common cases (single/double quotes and backslashes).
+
+## Project Structure
+
+- src/main.cs — REPL entry point
+- src/Shell.cs — built-ins, external command execution, history
+- src/PipelineExecutor.cs — pipeline orchestration
+- src/AutoCompleteHandler.cs — tab completion
+- src/ShellHelpers.cs — parsing, command resolution, redirection utilities
+
+## Development
+
+- Format and lint via your IDE or editor of choice.
+- Target framework: net9.0
+- Language version: C# 13
+
+## License
+
+MIT (or the license specified by the repository).
