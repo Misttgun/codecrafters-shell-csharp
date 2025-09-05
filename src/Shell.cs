@@ -16,11 +16,9 @@ namespace cc_shell
         public Shell()
         {
             _HistoryFilePath = Environment.GetEnvironmentVariable("HISTFILE");
-            
-            // Keep startup behavior the same (synchronous), but leverage async internally and block.
             _ = ReadHistoryFromFileAsync(_HistoryFilePath).GetAwaiter().GetResult();
         }
-        
+
         public CommandResult HandleBuiltInCommand(ParsedCommand parsedCmd, bool isPipeline = false)
             => HandleBuiltInCommandAsync(parsedCmd, isPipeline).GetAwaiter().GetResult();
 
@@ -78,7 +76,7 @@ namespace cc_shell
 
             return new CommandResult(0, output, error);
         }
-        
+
         private static CommandResult HandleExit(string commandArgsStr)
         {
             int.TryParse(commandArgsStr, out var exitCode);
@@ -123,12 +121,11 @@ namespace cc_shell
                 return new CommandResult(0, null, null);
             }
 
-            if (Directory.Exists(commandArgsStr) == false) 
+            if (Directory.Exists(commandArgsStr) == false)
                 return new CommandResult(0, null, $"cd: {commandArgsStr}: No such file or directory\n");
-            
+
             Directory.SetCurrentDirectory(commandArgsStr);
             return new CommandResult(0, null, null);
-
         }
 
         private async Task<CommandResult> HandleHistoryAsync(ParsedCommand parsedCmd, bool isPipeline, CancellationToken ct)
