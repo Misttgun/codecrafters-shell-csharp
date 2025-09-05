@@ -15,10 +15,9 @@ while (true)
 
     // Detect pipelines and split into segments (respecting quotes and escapes)
     var segments = ShellHelpers.SplitPipelineSegments(input.Trim());
-    
-    int exitCode = -1;
-    string? output = "";
-    string? error = "";
+
+    string? output;
+    string? error;
 
     if (segments.Count > 1)
     {
@@ -33,17 +32,9 @@ while (true)
         var pipelineExecutor = new PipelineExecutor(shell);
         (_, output, error) = pipelineExecutor.RunPipeline(parsedCommands);
 
-        // Apply redirection based on the last stage (common shell behavior)
-        var last = parsedCommands[^1];
-
-        if (last.OutputFile != null)
-            ShellHelpers.HandleRedirection(output, last.OutputFile, last.AppendOutput);
-        else
+        if (string.IsNullOrEmpty(output) == false)
             Console.Write(output);
-
-        if (last.ErrorFile != null)
-            ShellHelpers.HandleRedirection(error, last.ErrorFile, last.AppendError);
-        else
+        else if (string.IsNullOrEmpty(error) == false)
             Console.Error.Write(error);
 
         continue;
@@ -51,7 +42,7 @@ while (true)
 
     var parsedCmd = ShellHelpers.ParseConsoleText(input.Trim());
 
-    (exitCode, output, error) = Shell.IsBuiltin(parsedCmd.Command)
+    (var exitCode, output, error) = Shell.IsBuiltin(parsedCmd.Command)
         ? shell.HandleBuiltInCommand(parsedCmd)
         : shell.HandleExternalCommand(parsedCmd);
 

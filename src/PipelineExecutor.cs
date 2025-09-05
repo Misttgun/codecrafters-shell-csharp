@@ -5,8 +5,8 @@ namespace cc_shell
 {
     /// <summary>
     /// Executes a pipeline of one or more commands, which can be a mix of external processes and shell built-ins.
-    /// This implementation uses a simple, synchronous-wait model that is kept deadlock-free
-    /// by NOT redirecting the final external command's standard output.
+    /// This implementation uses a simple, synchronous-wait model kept deadlock-free by NOT redirecting the final external command's standard output.
+    /// NOTE: This approach does not support redirection of output to a file in final or intermediate stages.
     /// </summary>
     public sealed class PipelineExecutor
     {
@@ -98,6 +98,7 @@ namespace cc_shell
                     {
                         // This is the last process. We capture its error stream asynchronously.
                         var errorReadTask = process.StandardError.ReadToEndAsync();
+                        
                         // We must wait for the process to exit before getting the result.
                         process.WaitForExit();
                         finalStderr = errorReadTask.Result;
@@ -109,12 +110,11 @@ namespace cc_shell
             }
 
             // Wait for any external processes that were started to finish.
-            foreach (var process in processesToWaitFor)
+            for (var i = processesToWaitFor.Count - 1; i >= 0; i--)
             {
-                // If it's not the last one, it might already be waited for.
-                // A simple WaitForExit is fine here as the I/O is handled by the pumps/last stage.
-                if (process.HasExited == false)
-                    process.WaitForExit();
+                var prevProcess = processesToWaitFor[i];
+                if (prevProcess.HasExited == false)
+                    prevProcess.WaitForExit();
             }
             
             return new CommandResult(finalExitCode, finalStdout, finalStderr);
