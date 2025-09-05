@@ -6,147 +6,49 @@ namespace cc_shell
     public class Shell
     {
         public static readonly HashSet<string> BuiltinCommands = ["exit", "echo", "type", "pwd", "cd", "history"];
-        private readonly HashSet<string> _HistoryArgs = ["-r", "-w", "-a"];
+        private static readonly HashSet<string> HistoryArgs = ["-r", "-w", "-a"];
 
         private int _LastHistoryAppend = -1;
         private readonly string? _HistoryFilePath;
-        
+
         public static bool IsBuiltin(string command) => BuiltinCommands.Contains(command);
 
         public Shell()
         {
             _HistoryFilePath = Environment.GetEnvironmentVariable("HISTFILE");
-            ReadHistoryFromFile(_HistoryFilePath);
+            
+            // Keep startup behavior the same (synchronous), but leverage async internally and block.
+            _ = ReadHistoryFromFileAsync(_HistoryFilePath).GetAwaiter().GetResult();
         }
-
+        
         public CommandResult HandleBuiltInCommand(ParsedCommand parsedCmd, bool isPipeline = false)
+            => HandleBuiltInCommandAsync(parsedCmd, isPipeline).GetAwaiter().GetResult();
+
+        public static CommandResult HandleExternalCommand(ParsedCommand parsedCmd)
+            => HandleExternalCommandAsync(parsedCmd).GetAwaiter().GetResult();
+
+        public void WriteHistoryOnExit()
+            => WriteHistoryOnExitAsync().GetAwaiter().GetResult();
+
+        private async Task<CommandResult> HandleBuiltInCommandAsync(ParsedCommand parsedCmd, bool isPipeline = false, CancellationToken ct = default)
         {
-            var commandArgsStr = string.Join(' ', parsedCmd.Args);
-            string? output = null;
-            string? error = null;
-            var exitCode = 0;
+            var cmd = parsedCmd.Command;
+            var args = parsedCmd.Args;
+            var commandArgsStr = string.Join(' ', args);
 
-            switch (parsedCmd.Command)
+            return cmd switch
             {
-                case "exit":
-                    int.TryParse(commandArgsStr,out exitCode);
-
-                    break;
-                case "echo":
-                {
-                    output = $"{commandArgsStr}\n";
-
-                    break;
-                }
-                case "type":
-                    if (IsBuiltin(commandArgsStr))
-                    {
-                        output = $"{commandArgsStr} is a shell builtin\n";
-                    }
-                    else
-                    {
-                        var found = ShellHelpers.TryGetCommandDir(commandArgsStr, out var fullPath);
-                        if (found)
-                            output = $"{commandArgsStr} is {fullPath}\n";
-                        else
-                            error = $"{commandArgsStr}: not found\n";
-                    }
-
-                    break;
-                case "pwd":
-                    output = $"{Directory.GetCurrentDirectory()}\n";
-
-                    break;
-                case "cd":
-                    if (isPipeline) // Don't change directory if we're in a pipeline
-                        break;
-                    
-                    var home = Environment.GetEnvironmentVariable("HOME");
-                    var fallbackHome = Directory.GetCurrentDirectory();
-
-                    if (commandArgsStr == "~")
-                    {
-                        Directory.SetCurrentDirectory(home ?? fallbackHome);
-                    }
-                    else if (Directory.Exists(commandArgsStr))
-                    {
-                        Directory.SetCurrentDirectory(commandArgsStr);
-                    }
-                    else
-                    {
-                        error = $"cd: {commandArgsStr}: No such file or directory\n";
-                    }
-
-                    break;
-                case "history":
-                    if (isPipeline) // Don't process history if we're in a pipeline (it should empty)
-                        break;
-                    
-                    var startIndex = 0;
-                    if (parsedCmd.Args.Count > 0) // If we pass arguments
-                    {
-                        if (_HistoryArgs.Contains(parsedCmd.Args[0]))
-                        {
-                            var historyArg = parsedCmd.Args[0];
-                            var filePath = parsedCmd.Args.Count == 2 ? parsedCmd.Args[1] : null;
-
-                            if (filePath == null)
-                            {
-                                error = $"history: {commandArgsStr} is not a valid argument\n";
-                                break;
-                            }
-
-                            if (historyArg == "-r") // Read history from file and add it to current history
-                            {
-                                error = ReadHistoryFromFile(filePath);
-                                break;
-                            }
-
-                            if (historyArg == "-w") // Write history to file
-                            {
-                                WriteHistoryToFile(filePath);
-                                break;
-                            }
-
-                            if (historyArg == "-a") // Append history to file
-                            {
-                                var historyToAppend = _LastHistoryAppend == -1
-                                    ? ReadLine.ReadLine.Context.History
-                                    : ReadLine.ReadLine.Context.History[_LastHistoryAppend..];
-
-                                _LastHistoryAppend = ReadLine.ReadLine.Context.History.Count;
-
-                                File.AppendAllLines(filePath, historyToAppend);
-                                break;
-                            }
-                        }
-                        else if (int.TryParse(commandArgsStr, out var historyCount))
-                        {
-                            startIndex = Math.Max(0, ReadLine.ReadLine.Context.History.Count - historyCount);
-                        }
-                        else
-                        {
-                            error = $"history: {commandArgsStr} is not a valid argument\n";
-                            break;
-                        }
-                    }
-
-                    var builder = new StringBuilder();
-
-                    for (var i = startIndex; i < ReadLine.ReadLine.Context.History.Count; i++)
-                    {
-                        var line = ReadLine.ReadLine.Context.History[i];
-                        builder.AppendLine($"    {i + 1}  {line}");
-                    }
-
-                    output = builder.ToString();
-                    break;
-            }
-
-            return new CommandResult(exitCode, output, error);
+                "exit" => HandleExit(commandArgsStr),
+                "echo" => HandleEcho(commandArgsStr),
+                "type" => HandleType(commandArgsStr),
+                "pwd" => HandlePwd(),
+                "cd" => HandleCd(commandArgsStr, isPipeline),
+                "history" => await HandleHistoryAsync(parsedCmd, isPipeline, ct),
+                _ => new CommandResult(0, null, null)
+            };
         }
 
-        public CommandResult HandleExternalCommand(ParsedCommand parsedCmd)
+        private static async Task<CommandResult> HandleExternalCommandAsync(ParsedCommand parsedCmd, CancellationToken ct = default)
         {
             string? output = null;
             string? error;
@@ -155,23 +57,19 @@ namespace cc_shell
 
             if (foundExe)
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = parsedCmd.Command,
-                    UseShellExecute = false,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true,
-                };
+                var startInfo = CreateStartInfo(parsedCmd.Command, parsedCmd.Args);
 
-                foreach (var arg in parsedCmd.Args)
-                    startInfo.ArgumentList.Add(arg);
+                using var process = Process.Start(startInfo);
+                if (process is null)
+                    return new CommandResult(0, null, $"{parsedCmd.Command}: failed to start\n");
 
-                var process = Process.Start(startInfo);
+                var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+                var stderrTask = process.StandardError.ReadToEndAsync(ct);
 
-                output = process?.StandardOutput.ReadToEnd();
-                error = process?.StandardError.ReadToEnd();
+                await process.WaitForExitAsync(ct);
 
-                process?.WaitForExit();
+                output = await stdoutTask;
+                error = await stderrTask;
             }
             else
             {
@@ -180,8 +78,147 @@ namespace cc_shell
 
             return new CommandResult(0, output, error);
         }
+        
+        private static CommandResult HandleExit(string commandArgsStr)
+        {
+            int.TryParse(commandArgsStr, out var exitCode);
+            return new CommandResult(exitCode, null, null);
+        }
 
-        private static string? ReadHistoryFromFile(string? filePath)
+        private static CommandResult HandleEcho(string commandArgsStr)
+        {
+            var output = $"{commandArgsStr}\n";
+            return new CommandResult(0, output, null);
+        }
+
+        private static CommandResult HandleType(string commandArgsStr)
+        {
+            if (IsBuiltin(commandArgsStr))
+                return new CommandResult(0, $"{commandArgsStr} is a shell builtin\n", null);
+
+            var found = ShellHelpers.TryGetCommandDir(commandArgsStr, out var fullPath);
+            if (found)
+                return new CommandResult(0, $"{commandArgsStr} is {fullPath}\n", null);
+
+            return new CommandResult(0, null, $"{commandArgsStr}: not found\n");
+        }
+
+        private static CommandResult HandlePwd()
+        {
+            var output = $"{Directory.GetCurrentDirectory()}\n";
+            return new CommandResult(0, output, null);
+        }
+
+        private static CommandResult HandleCd(string commandArgsStr, bool isPipeline)
+        {
+            if (isPipeline) // Don't change directory if we're in a pipeline
+                return new CommandResult(0, null, null);
+
+            var home = Environment.GetEnvironmentVariable("HOME");
+            var fallbackHome = Directory.GetCurrentDirectory();
+
+            if (commandArgsStr == "~")
+            {
+                Directory.SetCurrentDirectory(home ?? fallbackHome);
+                return new CommandResult(0, null, null);
+            }
+
+            if (Directory.Exists(commandArgsStr) == false) 
+                return new CommandResult(0, null, $"cd: {commandArgsStr}: No such file or directory\n");
+            
+            Directory.SetCurrentDirectory(commandArgsStr);
+            return new CommandResult(0, null, null);
+
+        }
+
+        private async Task<CommandResult> HandleHistoryAsync(ParsedCommand parsedCmd, bool isPipeline, CancellationToken ct)
+        {
+            if (isPipeline) // Don't process history if we're in a pipeline (it should empty)
+                return new CommandResult(0, null, null);
+
+            var args = parsedCmd.Args;
+            var commandArgsStr = string.Join(' ', args);
+
+            var startIndex = 0;
+
+            if (args.Count > 0) // If we pass arguments
+            {
+                var firstArg = args[0];
+                if (HistoryArgs.Contains(firstArg))
+                {
+                    var filePath = args.Count == 2 ? args[1] : null;
+
+                    if (filePath == null)
+                        return new CommandResult(0, null, $"history: {commandArgsStr} is not a valid argument\n");
+
+                    if (firstArg == "-r") // Read history from file and add it to current history
+                    {
+                        var readErr = await ReadHistoryFromFileAsync(filePath, ct);
+                        return new CommandResult(0, null, readErr);
+                    }
+
+                    if (firstArg == "-w") // Write history to file
+                    {
+                        await WriteHistoryToFileAsync(filePath, ct);
+                        return new CommandResult(0, null, null);
+                    }
+
+                    if (firstArg == "-a") // Append history to file
+                    {
+                        await AppendHistoryToFileAsync(filePath, ct);
+                        return new CommandResult(0, null, null);
+                    }
+                }
+                else if (int.TryParse(string.Join(' ', args), out var historyCount))
+                {
+                    startIndex = Math.Max(0, ReadLine.ReadLine.Context.History.Count - historyCount);
+                }
+                else
+                {
+                    return new CommandResult(0, null, $"history: {commandArgsStr} is not a valid argument\n");
+                }
+            }
+
+            var builder = new StringBuilder();
+            var history = ReadLine.ReadLine.Context.History;
+            for (var i = startIndex; i < history.Count; i++)
+            {
+                var line = history[i];
+                builder.AppendLine($"    {i + 1}  {line}");
+            }
+
+            return new CommandResult(0, builder.ToString(), null);
+        }
+
+        private async Task AppendHistoryToFileAsync(string filePath, CancellationToken ct = default)
+        {
+            var history = ReadLine.ReadLine.Context.History;
+            var historyToAppend = _LastHistoryAppend == -1
+                ? history
+                : history[_LastHistoryAppend..];
+
+            _LastHistoryAppend = history.Count;
+
+            await File.AppendAllLinesAsync(filePath, historyToAppend, ct);
+        }
+
+        private static ProcessStartInfo CreateStartInfo(string fileName, IReadOnlyList<string> args)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+            };
+
+            foreach (var arg in args)
+                startInfo.ArgumentList.Add(arg);
+
+            return startInfo;
+        }
+
+        private static async Task<string?> ReadHistoryFromFileAsync(string? filePath, CancellationToken ct = default)
         {
             if (filePath == null)
                 return null;
@@ -189,22 +226,23 @@ namespace cc_shell
             if (File.Exists(filePath) == false)
                 return $"history: {filePath} is not a valid path\n";
 
-            ReadLine.ReadLine.Context.History.AddRange(File.ReadAllLines(filePath));
+            var lines = await File.ReadAllLinesAsync(filePath, ct);
+            ReadLine.ReadLine.Context.History.AddRange(lines);
 
             return null;
         }
 
-        private static void WriteHistoryToFile(string? filePath)
+        private static async Task WriteHistoryToFileAsync(string? filePath, CancellationToken ct = default)
         {
             if (filePath == null)
                 return;
 
-            File.WriteAllLines(filePath, ReadLine.ReadLine.Context.History);
+            await File.WriteAllLinesAsync(filePath, ReadLine.ReadLine.Context.History, ct);
         }
 
-        public void WriteHistoryOnExit()
+        private async Task WriteHistoryOnExitAsync(CancellationToken ct = default)
         {
-            WriteHistoryToFile(_HistoryFilePath);
+            await WriteHistoryToFileAsync(_HistoryFilePath, ct);
         }
     }
 

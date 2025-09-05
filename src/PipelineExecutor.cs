@@ -8,11 +8,8 @@ namespace cc_shell
     /// This implementation uses a simple, synchronous-wait model kept deadlock-free by NOT redirecting the final external command's standard output.
     /// NOTE: This approach does not support redirection of output to a file in final or intermediate stages.
     /// </summary>
-    public sealed class PipelineExecutor
+    public sealed class PipelineExecutor(Shell shell)
     {
-        private readonly Shell _shell;
-        public PipelineExecutor(Shell shell) => _shell = shell;
-
         public CommandResult RunPipeline(IReadOnlyList<ParsedCommand> stages)
         {
             if (stages.Count == 0)
@@ -32,7 +29,7 @@ namespace cc_shell
                 if (Shell.IsBuiltin(command.Command))
                 {
                     // Built-ins are executed synchronously within our own process.
-                    var result = _shell.HandleBuiltInCommand(command, isPipeline: true);
+                    var result = shell.HandleBuiltInCommand(command, isPipeline: true);
 
                     if (isLastCommand)
                     {

@@ -44,7 +44,7 @@ while (true)
 
     (var exitCode, output, error) = Shell.IsBuiltin(parsedCmd.Command)
         ? shell.HandleBuiltInCommand(parsedCmd)
-        : shell.HandleExternalCommand(parsedCmd);
+        : Shell.HandleExternalCommand(parsedCmd);
 
     // Handle the exit builtin specific case
     if (parsedCmd.Command == "exit")
